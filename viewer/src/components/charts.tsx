@@ -81,7 +81,18 @@ export function ComparisonChart({ data, n }: { data: Results; n: number }) {
     <ResponsiveContainer width="100%" height={380}>
       <BarChart data={bars} layout="vertical" margin={{ top: 8, right: 48, bottom: 8, left: 8 }}>
         <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" horizontal={false} />
-        <XAxis type="number" scale="log" domain={["auto", "auto"]} {...axis} />
+        {/* An explicit domain is required: recharts cannot derive a log
+            domain from "auto" and collapses every bar to zero width. */}
+        <XAxis
+          type="number"
+          scale="log"
+          domain={[
+            Math.min(...bars.map((b) => b.ms as number)) * 0.6,
+            Math.max(...bars.map((b) => b.ms as number)) * 1.6,
+          ]}
+          allowDataOverflow
+          {...axis}
+        />
         <YAxis type="category" dataKey="kernel" width={130} {...axis} />
         <Tooltip contentStyle={tooltipStyle} formatter={(v) => fmt(v as number)} />
         <Bar dataKey="ms" radius={[0, 4, 4, 0]}>
