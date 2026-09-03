@@ -1,0 +1,29 @@
+[package]
+name = "axiolid-benchmarks"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Deliberately NOT a member of the kernel workspace: this harness must be able
+# to point at an arbitrary kernel checkout to A/B two commits. Paths are
+# relative so the repo is clonable; override with AXIOLID_KERNEL_DIR /
+# IFCLITE_GEOMETRY_DIR via .cargo/config.toml if your layout differs.
+
+[dependencies]
+axiolid-core = { path = "../kernel/crates/foundation/core" }
+axiolid-mesh = { path = "../kernel/crates/representations/discrete/mesh" }
+axiolid-contracts = { path = "../kernel/crates/contracts/common/base" }
+axiolid-mesh-boolean-contract = { path = "../kernel/crates/contracts/operations/mesh-boolean" }
+axiolid-mesh-boolean-boolmesh = { path = "../kernel/crates/providers/mesh/boolmesh" }
+
+# ifc-lite geometry kernel, driven directly through its public API.
+ifc-lite-geometry = { path = "../../ifclite/rust/geometry" }
+
+# Raw backend, to separate the boolean cost from axiolid provider overhead.
+boolmesh = "0.1.9"
+
+[build-dependencies]
+cc = "1"
+
+[profile.release]
+debug = true
