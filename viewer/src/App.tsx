@@ -12,6 +12,23 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KERNELS, type Results, kernelOrder } from "@/types";
 
+/** Display text per workload id emitted by the harness. */
+const WORKLOADS: Record<string, { label: string; caption: string }> = {
+  offset: {
+    label: "Offset openings",
+    caption: "Cut planes strictly inside the wall.",
+  },
+  flush: {
+    label: "Coincident faces",
+    caption: "Cut planes coincident with the wall's faces — the degenerate case.",
+  },
+  rotated: {
+    label: "Rotated openings",
+    caption:
+      "Openings rotated 30° in plan. Analytic fast paths are only valid for axis-aligned operands, so they decline here and the row shows the general solver's real cost.",
+  },
+};
+
 export default function App() {
   const [data, setData] = useState<Results | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -104,13 +121,11 @@ export default function App() {
                   variant={w === workload ? "default" : "outline"}
                   onClick={() => setWorkload(w)}
                 >
-                  {w === "flush" ? "Coincident faces" : "Offset openings"}
+                  {WORKLOADS[w]?.label ?? w}
                 </Button>
               ))}
               <span className="text-xs text-muted-foreground">
-                {workload === "flush"
-                  ? "Cut planes coincident with the wall's faces — the degenerate case."
-                  : "Cut planes strictly inside the wall."}
+                {WORKLOADS[workload]?.caption ?? ""}
               </span>
             </div>
           )}
