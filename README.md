@@ -3,6 +3,18 @@
 Cross-kernel comparison of mesh boolean performance on the workload that
 dominates IFC: subtracting rectangular openings from a wall.
 
+Three geometry cases are measured, because kernels rank differently on each:
+
+| Workload | Geometry | Why it is here |
+|---|---|---|
+| `offset` | Cut planes strictly inside the wall | The easy, well-conditioned case |
+| `flush` | Cut planes coincident with the wall's faces | The degenerate case real IFC hits constantly (a door at floor level). Kernels disagree most here |
+| `rotated` | Openings rotated 30 deg in plan | No operand is axis-aligned, so every analytic fast path must decline and the general solver's real cost is visible |
+
+A kernel that declines is reported as absent, never as a zero. A kernel whose
+result volume disagrees with the derived ground truth is reported as `WRONG`
+and emits no timing -- a fast wrong answer must not read as a win.
+
 Every number here is measured on the machine that runs it. Nothing is
 committed, cached, or hand-written into the UI.
 
