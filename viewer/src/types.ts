@@ -10,12 +10,21 @@ export interface Row {
   [kernel: string]: number | string | null | undefined;
 }
 
+export interface ExactnessRow {
+  identity: string;
+  law: string;
+  /** Relative residual per kernel; `null` means "could not be scored", not "passed". */
+  [kernel: string]: number | null | string;
+}
+
 export interface Results {
   reps: number;
   mismatches: number;
   /** Kernels actually compiled into this build; absent ones are omitted. */
   built: string[];
   rows: Row[];
+  /** Algebraic identity residuals; absent on older harness builds. */
+  exactness?: ExactnessRow[];
   generatedAt?: string;
 }
 

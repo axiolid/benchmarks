@@ -39,7 +39,10 @@ export default function App() {
     setError(null);
     if (fresh) setRunning(true);
     try {
-      const res = await fetch(`/api/results${fresh ? "?refresh=1&reps=5" : ""}`);
+      // The server's cache-busting parameter is `fresh`, not `refresh`: a
+      // mismatched name silently returns the cached run, so "Re-run benchmark"
+      // appeared to work while measuring nothing.
+      const res = await fetch(`/api/results${fresh ? "?fresh=1&reps=5" : ""}`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
       setData(body);
@@ -134,6 +137,7 @@ export default function App() {
               <TabsTrigger value="scaling">Scaling</TabsTrigger>
               <TabsTrigger value="compare">Head-to-head</TabsTrigger>
               <TabsTrigger value="table">Table</TabsTrigger>
+              <TabsTrigger value="exactness">Exactness</TabsTrigger>
             </TabsList>
 
             <TabsContent value="scaling">
@@ -202,6 +206,69 @@ export default function App() {
                     <strong>deferred</strong> = kernel declined the input (returned no result). Not a
                     speed win.
                   </p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="exactness">
+              <Card>
+                <CardContent className="pt-6">
+                  {!data.exactness?.length ? (
+                    <p className="text-sm text-muted-foreground">
+                      This harness build did not report exactness.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="mb-4 text-sm text-muted-foreground">
+                        Residual of each algebraic law, relative to vol(A)+vol(B). Operands are a
+                        slab and a 30° rotated box straddling its face. Unlike the timing tabs this
+                        needs no ground truth — the identity is its own oracle.
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-border text-left">
+                              <th className="pb-2 pr-4 font-medium">identity</th>
+                              {kernelOrder(data.built)
+                                .filter((k) => data.exactness?.[0]?.[k] !== undefined)
+                                .map((k) => (
+                                  <th key={k} className="pb-2 pr-4 font-medium">
+                                    {KERNELS[k].label}
+                                  </th>
+                                ))}
+                            </tr>
+                          </thead>
+                          <tbody className="font-mono text-xs">
+                            {data.exactness.map((row) => (
+                              <tr key={row.identity} className="border-b border-border/50">
+                                <td className="py-2 pr-4">
+                                  <div>{row.identity}</div>
+                                  <div className="text-muted-foreground">{row.law}</div>
+                                </td>
+                                {kernelOrder(data.built)
+                                  .filter((k) => row[k] !== undefined)
+                                  .map((k) => (
+                                    <td key={k} className="py-2 pr-4">
+                                      {row[k] == null ? (
+                                        <span className="text-muted-foreground">not scored</span>
+                                      ) : (
+                                        (row[k] as number).toExponential(2)
+                                      )}
+                                    </td>
+                                  ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="mt-4 text-xs text-muted-foreground">
+                        <strong>not scored</strong> = the kernel could not be asked (it refuses a
+                        rotated subject, failed, or is not compiled in). It does{" "}
+                        <strong>not</strong> mean the law held. ~1e-16 is machine epsilon: exact to
+                        the limit of double precision.
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
