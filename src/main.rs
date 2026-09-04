@@ -31,6 +31,8 @@ use ifc_lite_geometry::mesh::Mesh as LiteMesh;
 /// Opt-in analytic fast path (see `cellular.rs`). Never auto-dispatched: the
 /// caller chooses fast-vs-exact explicitly, so a run's topology is predictable.
 mod cellular;
+mod exactness;
+mod ops;
 
 // C++ kernels behind a C ABI (`cpp/shim.cpp`). Each takes the same host box
 // and flat 8-corner (24 doubles) cutter array every Rust column gets, and returns the
@@ -48,6 +50,12 @@ extern "C" {
         cutters: *const f64,
         n: i32,
     ) -> f64;
+    fn bench_manifold_op(
+        host_min: *const f64,
+        host_max: *const f64,
+        operand: *const f64,
+        op: i32,
+    ) -> f64;
 }
 
 #[cfg(has_cgal)]
@@ -58,6 +66,12 @@ extern "C" {
         cutters: *const f64,
         n: i32,
     ) -> f64;
+    fn bench_cgal_op(
+        host_min: *const f64,
+        host_max: *const f64,
+        operand: *const f64,
+        op: i32,
+    ) -> f64;
 }
 
 #[cfg(has_occt)]
@@ -67,6 +81,12 @@ extern "C" {
         host_max: *const f64,
         cutters: *const f64,
         n: i32,
+    ) -> f64;
+    fn bench_occt_op(
+        host_min: *const f64,
+        host_max: *const f64,
+        operand: *const f64,
+        op: i32,
     ) -> f64;
 }
 
@@ -310,7 +330,10 @@ fn clip_half_plane(poly: &[[f64; 2]], keep: impl Fn([f64; 2]) -> f64) -> Vec<[f6
         // is non-zero exactly when the sign differs, so this cannot divide by 0.
         if (dc >= 0.0) != (dp >= 0.0) {
             let t = dp / (dp - dc);
-            out.push([prev[0] + t * (cur[0] - prev[0]), prev[1] + t * (cur[1] - prev[1])]);
+            out.push([
+                prev[0] + t * (cur[0] - prev[0]),
+                prev[1] + t * (cur[1] - prev[1]),
+            ]);
         }
         if dc >= 0.0 {
             out.push(cur);
@@ -329,9 +352,8 @@ fn clip_half_plane(poly: &[[f64; 2]], keep: impl Fn([f64; 2]) -> f64) -> Vec<[f6
 /// they never touch each other and the removed volumes simply sum.
 fn expected_rotated_volume(n: usize) -> f64 {
     let (wall, openings) = wall_with_rotated_openings(n);
-    let wall_volume = (wall.max[0] - wall.min[0])
-        * (wall.max[1] - wall.min[1])
-        * (wall.max[2] - wall.min[2]);
+    let wall_volume =
+        (wall.max[0] - wall.min[0]) * (wall.max[1] - wall.min[1]) * (wall.max[2] - wall.min[2]);
 
     let mut removed = 0.0;
     for o in &openings {
@@ -670,7 +692,11 @@ fn main() {
     let workloads: [Workload; 3] = [
         ("offset", offset_obb, expected_volume),
         ("flush", flush_obb, expected_flush_volume),
-        ("rotated", wall_with_rotated_openings, expected_rotated_volume),
+        (
+            "rotated",
+            wall_with_rotated_openings,
+            expected_rotated_volume,
+        ),
     ];
 
     for (workload, generate, ground_truth) in workloads {
@@ -913,17 +939,21 @@ fn main() {
         .into_iter()
         .flatten()
         .collect();
+        let exact = exactness::report(true);
         println!(
-            "{{\"reps\":{reps},\"mismatches\":{wrong},\"built\":[{}],\"rows\":[{}]}}",
+            "{{\"reps\":{reps},\"mismatches\":{wrong},\"built\":[{}],\"rows\":[{}],\"exactness\":[{}]}}",
             built
                 .iter()
                 .map(|k| format!("\"{k}\""))
                 .collect::<Vec<_>>()
                 .join(","),
-            rows.join(",")
+            rows.join(","),
+            exact.join(",")
         );
         return;
     }
+
+    exactness::report(false);
 
     if wrong > 0 {
         println!("\n{wrong} volume mismatch(es) -- timings above are not comparable.");

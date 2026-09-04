@@ -1,3 +1,10 @@
+// Op codes shared with the Rust side: 0 = difference, 1 = union,
+// 2 = intersection. An unknown code must fail loudly rather than defaulting to
+// difference, or a caller typo would silently measure the wrong operation.
+#define BENCH_OP_DIFFERENCE 0
+#define BENCH_OP_UNION 1
+#define BENCH_OP_INTERSECTION 2
+
 #ifdef HAS_MANIFOLD
 #include <manifold/manifold.h>
 #include <vector>
@@ -39,6 +46,22 @@ extern "C" double bench_manifold_subtract(const double* host_min,
     acc = acc.Boolean(hex_of(cutters + i * 24), OpType::Subtract);
   }
   return acc.Volume();
+}
+
+// Single operation between the host and ONE operand, for algebraic identity
+// testing. Kept separate from the N-cutter loop above so the identity harness
+// measures exactly one boolean, with no accumulation to hide error.
+extern "C" double bench_manifold_op(const double* host_min,
+                                    const double* host_max,
+                                    const double* operand, int op) {
+  Manifold a = box_of(host_min, host_max);
+  Manifold b = hex_of(operand);
+  switch (op) {
+    case BENCH_OP_DIFFERENCE: return a.Boolean(b, OpType::Subtract).Volume();
+    case BENCH_OP_UNION: return a.Boolean(b, OpType::Add).Volume();
+    case BENCH_OP_INTERSECTION: return a.Boolean(b, OpType::Intersect).Volume();
+    default: return -1.0;
+  }
 }
 #endif  // HAS_MANIFOLD
 
@@ -99,6 +122,29 @@ static CgalMesh cgal_hex(const double* c) {
   return m;
 }
 
+extern "C" double bench_cgal_op(const double* host_min, const double* host_max,
+                                const double* operand, int op) {
+  CgalMesh a = cgal_box(host_min, host_max);
+  CgalMesh b = cgal_hex(operand), out;
+  bool ok = false;
+  switch (op) {
+    case BENCH_OP_DIFFERENCE:
+      ok = PMP::corefine_and_compute_difference(a, b, out);
+      break;
+    case BENCH_OP_UNION:
+      ok = PMP::corefine_and_compute_union(a, b, out);
+      break;
+    case BENCH_OP_INTERSECTION:
+      ok = PMP::corefine_and_compute_intersection(a, b, out);
+      break;
+    default:
+      return -1.0;
+  }
+  if (!ok) return -1.0;
+  // Exact kernel: the volume is a rational, converted only at the boundary.
+  return CGAL::to_double(PMP::volume(out));
+}
+
 extern "C" double bench_cgal_subtract(const double* host_min,
                                       const double* host_max,
                                       const double* cutters, int n) {
@@ -119,6 +165,8 @@ extern "C" double bench_cgal_subtract(const double* host_min,
 // 7.8.1 ships Poly_ArrayOfNodes.hxx without its required
 // NCollection_AliasedArray.hxx, so the packaged headers cannot compile.
 #include <BRepAlgoAPI_Cut.hxx>
+#include <BRepAlgoAPI_Fuse.hxx>
+#include <BRepAlgoAPI_Common.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <GProp_GProps.hxx>
 #include <BRepGProp.hxx>
@@ -155,6 +203,38 @@ static TopoDS_Shape occt_hex(const double* c) {
   }
   sew.Perform();
   return BRepBuilderAPI_MakeSolid(TopoDS::Shell(sew.SewedShape())).Solid();
+}
+
+extern "C" double bench_occt_op(const double* host_min, const double* host_max,
+                                const double* operand, int op) {
+  TopoDS_Shape a = occt_box(host_min, host_max);
+  TopoDS_Shape b = occt_hex(operand);
+  TopoDS_Shape out;
+  switch (op) {
+    case BENCH_OP_DIFFERENCE: {
+      BRepAlgoAPI_Cut o(a, b);
+      if (!o.IsDone()) return -1.0;
+      out = o.Shape();
+      break;
+    }
+    case BENCH_OP_UNION: {
+      BRepAlgoAPI_Fuse o(a, b);
+      if (!o.IsDone()) return -1.0;
+      out = o.Shape();
+      break;
+    }
+    case BENCH_OP_INTERSECTION: {
+      BRepAlgoAPI_Common o(a, b);
+      if (!o.IsDone()) return -1.0;
+      out = o.Shape();
+      break;
+    }
+    default:
+      return -1.0;
+  }
+  GProp_GProps props;
+  BRepGProp::VolumeProperties(out, props);
+  return props.Mass();
 }
 
 extern "C" double bench_occt_subtract(const double* host_min,
