@@ -18,6 +18,28 @@ and emits no timing -- a fast wrong answer must not read as a win.
 Every number here is measured on the machine that runs it. Nothing is
 committed, cached, or hand-written into the UI.
 
+## Exactness
+
+Timing tabs answer "how fast"; the exactness table answers "is it correct". Each
+row is a law of set algebra that any correct boolean must satisfy for any
+operands:
+
+| identity | law |
+|---|---|
+| partition | `vol(A-B) + vol(A^B) = vol(A)` |
+| inclusion-exclusion | `vol(AuB) + vol(A^B) = vol(A) + vol(B)` |
+| idempotence | `vol(AuA) = vol(A)` |
+| commutativity | `vol(AuB) = vol(BuA)` |
+
+The residual is reported relative to `vol(A)+vol(B)`, so magnitudes are
+comparable across operand sizes. ~1e-16 is machine epsilon: exact to the limit
+of double precision. This needs no ground truth -- the identity is its own
+oracle -- so it works on inputs whose true volume nobody knows.
+
+`not scored` means the kernel could not be asked: it refused the input, failed,
+or is not compiled in. It is deliberately not rendered as 0, because a kernel
+that declines every operation would otherwise look flawless.
+
 ## What is compared
 
 | Column | What it is |
