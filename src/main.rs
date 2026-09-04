@@ -196,6 +196,39 @@ fn wall_and_openings(n: usize) -> (Box3, Vec<Box3>) {
     (wall, openings)
 }
 
+/// A wall whose openings sit FLUSH against its top and bottom faces, so the
+/// cut planes are COINCIDENT with host faces.
+///
+/// Real IFC hits this constantly: a door at floor level, a window flush with a
+/// slab. Coincident faces are the dominant source of cross-kernel disagreement,
+/// because each kernel has to decide whether a zero-thickness contact is inside
+/// or outside. The regular workload deliberately avoids the case, so nothing in
+/// the table currently exercises it.
+///
+/// The opening spans the wall's full height, so the result is the wall split
+/// into `n + 1` disjoint pillars -- which also makes this the only workload
+/// where a kernel's component handling is visible.
+fn wall_with_flush_openings(n: usize) -> (Box3, Vec<Box3>) {
+    let length = n as f64 + 1.0;
+    let wall = Box3::new(length / 2.0, 0.1, 1.5, length, 0.2, 3.0);
+    // Height 3.0 centred at 1.5 == exactly the wall's z-range: the top and
+    // bottom cut planes land ON the host's faces rather than inside it.
+    let openings = (0..n)
+        .map(|i| Box3::new(0.75 + i as f64, 0.1, 1.5, 0.5, 0.5, 3.0))
+        .collect();
+    (wall, openings)
+}
+
+/// Ground truth for [`wall_with_flush_openings`], derived not measured.
+///
+/// Each opening removes a full-height slot: `0.5 * wall_thickness * 3.0`. The
+/// flush contact removes no extra material, so a kernel that reports less has
+/// treated a coincident face as an overlap.
+fn expected_flush_volume(n: usize) -> f64 {
+    let wall = (n as f64 + 1.0) * 0.2 * 3.0;
+    wall - n as f64 * (0.5 * 0.2 * 3.0)
+}
+
 /// Ground truth for [`wall_and_openings`], derived not measured.
 ///
 /// The openings are disjoint, fully pierce the wall in x/z, and are wider than
@@ -412,159 +445,193 @@ fn main() {
     }
     let mut wrong = 0usize;
 
-    for &n in &[1usize, 4, 16, 64] {
-        let (wall, openings) = wall_and_openings(n);
+    // (label, generator, ground truth). The flush variant forces coincident
+    // cut planes, which is where kernels genuinely disagree.
+    type Workload = (
+        &'static str,
+        fn(usize) -> (Box3, Vec<Box3>),
+        fn(usize) -> f64,
+    );
+    let workloads: [Workload; 2] = [
+        ("offset", wall_and_openings, expected_volume),
+        ("flush", wall_with_flush_openings, expected_flush_volume),
+    ];
 
-        // --- axiolid: subtract_many through the provider contract ---
-        let ax_host = axiolid_box(wall);
-        let ax_tools: Vec<TriMesh> = openings.iter().map(|o| axiolid_box(*o)).collect();
-        let (ax_ms, ax_out) = best_of(reps, || {
-            provider
-                .subtract_many(&ax_host, &ax_tools, &options)
-                .expect("axiolid subtract_many")
-                .mesh
-        });
-        let ax_vol = axiolid_volume(&ax_out);
-
-        // --- ifc-lite: general exact mesh-arrangement kernel ---
-        let lite_host = lite_box(wall);
-        let lite_tools: Vec<LiteMesh> = openings.iter().map(|o| lite_box(*o)).collect();
-        let (lk_ms, lk_vol) = {
-            let refs: Vec<&LiteMesh> = lite_tools.iter().collect();
-            let (ms, out) = best_of(reps, || {
-                ifc_lite_geometry::kernel::mesh_bridge::subtract_many(&lite_host, &refs)
-            });
-            match out {
-                Some(m) => (ms, Some(lite_volume(&m))),
-                None => (ms, None),
-            }
-        };
-
-        // --- ifc-lite: analytic rect_fast cellular path ---
-        let boxes: Vec<([f64; 3], [f64; 3])> = openings.iter().map(|o| (o.min, o.max)).collect();
-        let (rf_ms, rf_vol) = {
-            let (ms, out) = best_of(reps, || {
-                let mut stats = ifc_lite_geometry::RectFastStats::default();
-                ifc_lite_geometry::rect_fast::subtract_rect_openings(&lite_host, &boxes, &mut stats)
-            });
-            match out {
-                Some(m) => (ms, Some(lite_volume(&m))),
-                None => (ms, None),
-            }
-        };
-
-        // --- axiolid-side analytic path, opt-in (never auto-dispatched).
-        // Same grid decomposition idea as rect_fast, but built on ordered
-        // (BTreeMap) vertex identity so its output is byte-reproducible --
-        // unlike the general boolean path, which inherits upstream boolmesh's
-        // HashMap-seeded instability.
-        let (cell_ms, cell_vol) = {
-            let (ms, out) = best_of(reps, || {
-                cellular::subtract_boxes((wall.min, wall.max), &boxes, 1 << 20)
-            });
-            match out {
-                Some(c) => (
-                    ms,
-                    Some(signed_volume(triples(&c.indices), |i| {
-                        c.positions[i as usize]
-                    })),
-                ),
-                None => (ms, None),
-            }
-        };
-
-        // --- C++ kernels through the C ABI. Same boxes, same order.
-        // These return a VOLUME, not a mesh: the C++ kernels use their own
-        // native representations (Manifold's halfedge mesh, CGAL's Surface_mesh
-        // over an exact kernel), and marshalling those back into TriMesh would
-        // charge them a conversion cost no other column pays. Volume is the one
-        // quantity every kernel computes natively and that the ground-truth
-        // check already relies on.
-        let flat = flat_cutters(&openings);
-        type CppFn = unsafe extern "C" fn(*const f64, *const f64, *const f64, i32) -> f64;
-        let cpp_col = |f: CppFn| -> (f64, Option<f64>) {
-            let (ms, v) = best_of(reps, || unsafe {
-                f(
-                    wall.min.as_ptr(),
-                    wall.max.as_ptr(),
-                    flat.as_ptr(),
-                    openings.len() as i32,
-                )
-            });
-            // Negative volume is the shims' failure signal; surface it as a
-            // wrong answer rather than letting it read as a fast success.
-            (ms, Some(v))
-        };
-        #[cfg(has_manifold)]
-        let (mf_ms, mf_vol) = cpp_col(bench_manifold_subtract);
-        #[cfg(not(has_manifold))]
-        let (mf_ms, mf_vol) = (f64::NAN, None);
-        #[cfg(has_cgal)]
-        let (cg_ms, cg_vol) = cpp_col(bench_cgal_subtract);
-        #[cfg(not(has_cgal))]
-        let (cg_ms, cg_vol) = (f64::NAN, None);
-        #[cfg(has_occt)]
-        let (oc_ms, oc_vol) = cpp_col(bench_occt_subtract);
-        #[cfg(not(has_occt))]
-        let (oc_ms, oc_vol) = (f64::NAN, None);
-        let _ = &cpp_col;
-
-        // --- raw boolmesh: the same backend axiolid wraps, called directly.
-        // The delta against `axiolid` above is the provider's own cost:
-        // input validation, TriMesh<->boolmesh conversion, result orientation
-        // checking, and evidence/connected-component construction.
-        let (raw_ms, raw_vol) = {
-            let host = to_manifold_box(wall);
-            let tools: Vec<_> = openings.iter().map(|o| to_manifold_box(*o)).collect();
-            let (ms, out) = best_of(reps, || {
-                let mut acc = host.clone();
-                for t in &tools {
-                    acc = boolmesh::prelude::compute_boolean(
-                        &acc,
-                        t,
-                        boolmesh::prelude::OpType::Subtract,
-                    )
-                    .expect("raw boolmesh subtract");
-                }
-                acc
-            });
-            let v = signed_volume(
-                out.get_indices()
-                    .iter()
-                    .map(|t| [t.x as u32, t.y as u32, t.z as u32]),
-                |i| {
-                    let q = out.ps[i as usize];
-                    [q.x, q.y, q.z]
-                },
-            );
-            (ms, v)
-        };
-
-        let fmt = |ms: f64, v: Option<f64>| match v {
-            Some(_) => format!("{ms:.3} ms"),
-            None => "deferred".to_owned(),
-        };
-        if !json {
-            println!(
-                "{n:>4}  {:>11}  {:>11}  {:>11}  {:>11}  {:>11}  {:>11}  {:>11}  {:>11}",
-                format!("{ax_ms:.3} ms"),
-                format!("{raw_ms:.3} ms"),
-                fmt(lk_ms, lk_vol),
-                fmt(rf_ms, rf_vol),
-                fmt(cell_ms, cell_vol),
-                fmt(mf_ms, mf_vol),
-                fmt(cg_ms, cg_vol),
-                fmt(oc_ms, oc_vol),
-            );
+    for (workload, generate, ground_truth) in workloads {
+        if !json && workload == "flush" {
+            println!("\n-- coincident cut planes (openings flush with the wall's faces) --");
         }
-        // `null` where a kernel declined or is not compiled in -- the UI must
-        // render an absence as an absence, never as a zero.
-        let j = |ms: f64, v: Option<f64>| match v {
-            Some(_) if ms.is_finite() => format!("{ms:.4}"),
-            _ => "null".to_owned(),
-        };
-        rows.push(format!(
-            "{{\"n\":{n},\"axiolid\":{},\"raw_boolmesh\":{},\"lite_kernel\":{},\"lite_rectfast\":{},\"cellular\":{},\"manifold\":{},\"cgal\":{},\"occt\":{}}}",
+        for &n in &[1usize, 4, 16, 64] {
+            let (wall, openings) = generate(n);
+
+            // --- axiolid: subtract_many through the provider contract ---
+            let ax_host = axiolid_box(wall);
+            let ax_tools: Vec<TriMesh> = openings.iter().map(|o| axiolid_box(*o)).collect();
+            let (ax_ms, ax_out) = best_of(reps, || {
+                provider
+                    .subtract_many(&ax_host, &ax_tools, &options)
+                    .expect("axiolid subtract_many")
+                    .mesh
+            });
+            let ax_vol = axiolid_volume(&ax_out);
+
+            // --- ifc-lite: general exact mesh-arrangement kernel ---
+            let lite_host = lite_box(wall);
+            let lite_tools: Vec<LiteMesh> = openings.iter().map(|o| lite_box(*o)).collect();
+            let (lk_ms, lk_vol) = {
+                let refs: Vec<&LiteMesh> = lite_tools.iter().collect();
+                let (ms, out) = best_of(reps, || {
+                    ifc_lite_geometry::kernel::mesh_bridge::subtract_many(&lite_host, &refs)
+                });
+                match out {
+                    Some(m) => (ms, Some(lite_volume(&m))),
+                    None => (ms, None),
+                }
+            };
+
+            // --- ifc-lite: analytic rect_fast cellular path ---
+            let boxes: Vec<([f64; 3], [f64; 3])> =
+                openings.iter().map(|o| (o.min, o.max)).collect();
+            let (rf_ms, rf_vol) = {
+                let (ms, out) = best_of(reps, || {
+                    let mut stats = ifc_lite_geometry::RectFastStats::default();
+                    ifc_lite_geometry::rect_fast::subtract_rect_openings(
+                        &lite_host, &boxes, &mut stats,
+                    )
+                });
+                match out {
+                    Some(m) => (ms, Some(lite_volume(&m))),
+                    None => (ms, None),
+                }
+            };
+
+            // --- axiolid-side analytic path, opt-in (never auto-dispatched).
+            // Same grid decomposition idea as rect_fast, but built on ordered
+            // (BTreeMap) vertex identity so its output is byte-reproducible --
+            // unlike the general boolean path, which inherits upstream boolmesh's
+            // HashMap-seeded instability.
+            let (cell_ms, cell_vol) = {
+                let (ms, out) = best_of(reps, || {
+                    cellular::subtract_boxes((wall.min, wall.max), &boxes, 1 << 20)
+                });
+                match out {
+                    Some(c) => (
+                        ms,
+                        Some(signed_volume(triples(&c.indices), |i| {
+                            c.positions[i as usize]
+                        })),
+                    ),
+                    None => (ms, None),
+                }
+            };
+
+            // --- C++ kernels through the C ABI. Same boxes, same order.
+            // These return a VOLUME, not a mesh: the C++ kernels use their own
+            // native representations (Manifold's halfedge mesh, CGAL's Surface_mesh
+            // over an exact kernel), and marshalling those back into TriMesh would
+            // charge them a conversion cost no other column pays. Volume is the one
+            // quantity every kernel computes natively and that the ground-truth
+            // check already relies on.
+            let flat = flat_cutters(&openings);
+            type CppFn = unsafe extern "C" fn(*const f64, *const f64, *const f64, i32) -> f64;
+            let cpp_col = |f: CppFn| -> (f64, Option<f64>) {
+                let (ms, v) = best_of(reps, || unsafe {
+                    f(
+                        wall.min.as_ptr(),
+                        wall.max.as_ptr(),
+                        flat.as_ptr(),
+                        openings.len() as i32,
+                    )
+                });
+                // Negative volume is the shims' failure signal; surface it as a
+                // wrong answer rather than letting it read as a fast success.
+                (ms, Some(v))
+            };
+            #[cfg(has_manifold)]
+            let (mf_ms, mf_vol) = cpp_col(bench_manifold_subtract);
+            #[cfg(not(has_manifold))]
+            let (mf_ms, mf_vol) = (f64::NAN, None);
+            #[cfg(has_cgal)]
+            let (cg_ms, cg_vol) = cpp_col(bench_cgal_subtract);
+            #[cfg(not(has_cgal))]
+            let (cg_ms, cg_vol) = (f64::NAN, None);
+            #[cfg(has_occt)]
+            let (oc_ms, oc_vol) = cpp_col(bench_occt_subtract);
+            #[cfg(not(has_occt))]
+            let (oc_ms, oc_vol) = (f64::NAN, None);
+            let _ = &cpp_col;
+
+            // --- raw boolmesh: the same backend axiolid wraps, called directly.
+            // The delta against `axiolid` above is the provider's own cost:
+            // input validation, TriMesh<->boolmesh conversion, result orientation
+            // checking, and evidence/connected-component construction.
+            let (raw_ms, raw_vol) = {
+                let host = to_manifold_box(wall);
+                let tools: Vec<_> = openings.iter().map(|o| to_manifold_box(*o)).collect();
+                let (ms, out) = best_of(reps, || {
+                    let mut acc = host.clone();
+                    for t in &tools {
+                        acc = boolmesh::prelude::compute_boolean(
+                            &acc,
+                            t,
+                            boolmesh::prelude::OpType::Subtract,
+                        )
+                        .expect("raw boolmesh subtract");
+                    }
+                    acc
+                });
+                let v = signed_volume(
+                    out.get_indices()
+                        .iter()
+                        .map(|t| [t.x as u32, t.y as u32, t.z as u32]),
+                    |i| {
+                        let q = out.ps[i as usize];
+                        [q.x, q.y, q.z]
+                    },
+                );
+                (ms, v)
+            };
+
+            let want = ground_truth(n);
+            // Correctness gates the timing. A kernel that returned an empty
+            // mesh in 5us would otherwise read as the fastest in the table.
+            let agrees = |v: Option<f64>| match v {
+                Some(v) => (v - want).abs() <= 1e-4 * want.abs().max(1.0),
+                None => false,
+            };
+            let fmt = |ms: f64, v: Option<f64>| {
+                if agrees(v) {
+                    format!("{ms:.3} ms")
+                } else if v.is_none() {
+                    "deferred".to_owned()
+                } else {
+                    "WRONG".to_owned()
+                }
+            };
+            if !json {
+                println!(
+                    "{n:>4}  {:>11}  {:>11}  {:>11}  {:>11}  {:>11}  {:>11}  {:>11}  {:>11}",
+                    format!("{ax_ms:.3} ms"),
+                    format!("{raw_ms:.3} ms"),
+                    fmt(lk_ms, lk_vol),
+                    fmt(rf_ms, rf_vol),
+                    fmt(cell_ms, cell_vol),
+                    fmt(mf_ms, mf_vol),
+                    fmt(cg_ms, cg_vol),
+                    fmt(oc_ms, oc_vol),
+                );
+            }
+            // `null` where a kernel declined or is not compiled in -- the UI must
+            // render an absence as an absence, never as a zero.
+            let j = |ms: f64, v: Option<f64>| {
+                if agrees(v) && ms.is_finite() {
+                    format!("{ms:.4}")
+                } else {
+                    "null".to_owned()
+                }
+            };
+            rows.push(format!(
+            "{{\"workload\":\"{workload}\",\"n\":{n},\"axiolid\":{},\"raw_boolmesh\":{},\"lite_kernel\":{},\"lite_rectfast\":{},\"cellular\":{},\"manifold\":{},\"cgal\":{},\"occt\":{}}}",
             j(ax_ms, Some(ax_vol)),
             j(raw_ms, Some(raw_vol)),
             j(lk_ms, lk_vol),
@@ -575,30 +642,28 @@ fn main() {
             j(oc_ms, oc_vol),
         ));
 
-        // Volume agreement against DERIVED ground truth, not against axiolid:
-        // anchoring on one kernel would let a shared error pass silently.
-        // ifc-lite stores positions as f32, so parity is checked at f32
-        // resolution -- a tighter bound flags representation noise as a bug.
-        let want = expected_volume(n);
-        let mut check = |label: &str, v: Option<f64>| match v {
-            Some(v) if (v - want).abs() > 1e-4 * want.abs().max(1.0) => {
-                // stderr: keeps `--json` stdout machine-parseable while the
-                // warning still surfaces in logs and the human table.
-                eprintln!("        !! {label} volume {v:.6}, expected {want:.6}");
-                wrong += 1;
-            }
-            _ => {}
-        };
-        check("axiolid", Some(ax_vol));
-        check("raw boolmesh", Some(raw_vol));
-        check("lite-kernel", lk_vol);
-        check("lite-rectfast", rf_vol);
-        check("cellular", cell_vol);
-        check("manifold", mf_vol);
-        check("cgal", cg_vol);
-        check("occt", oc_vol);
-        check("manifold", mf_vol);
-        check("cgal", cg_vol);
+            // Volume agreement against DERIVED ground truth, not against axiolid:
+            // anchoring on one kernel would let a shared error pass silently.
+            // ifc-lite stores positions as f32, so parity is checked at f32
+            // resolution -- a tighter bound flags representation noise as a bug.
+            let mut check = |label: &str, v: Option<f64>| match v {
+                Some(v) if (v - want).abs() > 1e-4 * want.abs().max(1.0) => {
+                    // stderr: keeps `--json` stdout machine-parseable while the
+                    // warning still surfaces in logs and the human table.
+                    eprintln!("        !! {label} volume {v:.6}, expected {want:.6}");
+                    wrong += 1;
+                }
+                _ => {}
+            };
+            check("axiolid", Some(ax_vol));
+            check("raw boolmesh", Some(raw_vol));
+            check("lite-kernel", lk_vol);
+            check("lite-rectfast", rf_vol);
+            check("cellular", cell_vol);
+            check("manifold", mf_vol);
+            check("cgal", cg_vol);
+            check("occt", oc_vol);
+        }
     }
 
     if json {
