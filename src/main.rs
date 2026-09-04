@@ -34,6 +34,7 @@ mod cellular;
 mod drift;
 mod exactness;
 mod ops;
+mod sliver;
 
 // C++ kernels behind a C ABI (`cpp/shim.cpp`). Each takes the same host box
 // and flat 8-corner (24 doubles) cutter array every Rust column gets, and returns the
@@ -956,6 +957,7 @@ fn main() {
 
     exactness::report(false);
     drift::drift_report();
+    sliver::report();
 
     if wrong > 0 {
         println!("\n{wrong} volume mismatch(es) -- timings above are not comparable.");
