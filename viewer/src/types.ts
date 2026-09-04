@@ -1,7 +1,13 @@
 /** Shape of `/api/results` — mirrors the harness's `--json` output exactly. */
 export interface Row {
   n: number;
-  [kernel: string]: number | null;
+  /**
+   * Which geometry case produced this row. `offset` keeps every cut plane
+   * strictly inside the wall; `flush` makes them coincident with its faces,
+   * which is where kernels genuinely disagree.
+   */
+  workload?: string;
+  [kernel: string]: number | string | null | undefined;
 }
 
 export interface Results {

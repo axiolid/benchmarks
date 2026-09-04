@@ -16,6 +16,7 @@ export default function App() {
   const [data, setData] = useState<Results | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [workload, setWorkload] = useState("offset");
 
   const load = useCallback(async (fresh = false) => {
     setError(null);
@@ -36,7 +37,13 @@ export default function App() {
     void load();
   }, [load]);
 
-  const maxN = data?.rows.at(-1)?.n ?? 64;
+  const workloads = Array.from(
+    new Set((data?.rows ?? []).map((r) => r.workload ?? "offset")),
+  );
+  const viewRows = (data?.rows ?? []).filter(
+    (r) => (r.workload ?? "offset") === workload,
+  );
+  const maxN = viewRows.at(-1)?.n ?? 64;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10">
@@ -87,6 +94,26 @@ export default function App() {
             )}
           </div>
 
+          {workloads.length > 1 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted-foreground">Geometry:</span>
+              {workloads.map((w) => (
+                <Button
+                  key={w}
+                  size="sm"
+                  variant={w === workload ? "default" : "outline"}
+                  onClick={() => setWorkload(w)}
+                >
+                  {w === "flush" ? "Coincident faces" : "Offset openings"}
+                </Button>
+              ))}
+              <span className="text-xs text-muted-foreground">
+                {workload === "flush"
+                  ? "Cut planes coincident with the wall's faces — the degenerate case."
+                  : "Cut planes strictly inside the wall."}
+              </span>
+            </div>
+          )}
           <Tabs defaultValue="scaling">
             <TabsList>
               <TabsTrigger value="scaling">Scaling</TabsTrigger>
@@ -104,7 +131,7 @@ export default function App() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ScalingChart data={data} />
+                  <ScalingChart data={{ ...data, rows: viewRows }} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -118,7 +145,7 @@ export default function App() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ComparisonChart data={data} n={maxN} />
+                  <ComparisonChart data={{ ...data, rows: viewRows }} n={maxN} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -139,7 +166,7 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody className="font-mono text-xs">
-                        {data.rows.map((row) => (
+                        {viewRows.map((row) => (
                           <tr key={row.n} className="border-b border-border/50">
                             <td className="py-2 pr-4">{row.n}</td>
                             {kernelOrder(data.built).map((k) => (
