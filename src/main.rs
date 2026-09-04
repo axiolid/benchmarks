@@ -31,6 +31,7 @@ use ifc_lite_geometry::mesh::Mesh as LiteMesh;
 /// Opt-in analytic fast path (see `cellular.rs`). Never auto-dispatched: the
 /// caller chooses fast-vs-exact explicitly, so a run's topology is predictable.
 mod cellular;
+mod drift;
 mod exactness;
 mod ops;
 
@@ -954,6 +955,7 @@ fn main() {
     }
 
     exactness::report(false);
+    drift::drift_report();
 
     if wrong > 0 {
         println!("\n{wrong} volume mismatch(es) -- timings above are not comparable.");
