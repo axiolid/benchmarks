@@ -10,10 +10,12 @@
 use std::path::Path;
 
 fn main() {
-    let manifold = std::env::var("MANIFOLD_DIR")
-        .unwrap_or_else(|_| "/mnt/backup/build-cache/manifold-install".to_owned());
-    let occt =
-        std::env::var("OCCT_DIR").unwrap_or_else(|_| "/home/friedrich/occt-install".to_owned());
+    // No hardcoded fallbacks: a machine-specific default leaks local paths into
+    // a public repo and silently builds the wrong thing on another machine.
+    // Unset means "kernel absent", which the cfg gates below already handle by
+    // omitting the column entirely rather than reporting a fake number.
+    let manifold = std::env::var("MANIFOLD_DIR").unwrap_or_default();
+    let occt = std::env::var("OCCT_DIR").unwrap_or_default();
 
     let has_manifold = Path::new(&format!("{manifold}/include/manifold/manifold.h")).exists();
     let has_occt = Path::new(&format!("{occt}/include/opencascade/BRepAlgoAPI_Cut.hxx")).exists();
