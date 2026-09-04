@@ -36,11 +36,10 @@ function runBenchmark(reps) {
       ["run", "--release", "--quiet", "--", String(reps), "--json"],
       {
         cwd: CRATE,
-        env: {
-          ...process.env,
-          CARGO_TARGET_DIR: "/mnt/backup/build-cache/kernel-bench-target",
-          CARGO_HOME: "/mnt/backup/build-cache/axiolid-rayon-cargo-home",
-        },
+        // Only override cargo directories when the environment asks for it.
+        // Hardcoded absolute build-cache paths would make this repo unusable
+        // on any other machine.
+        env: process.env,
       },
     );
     let out = "";
