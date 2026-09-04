@@ -33,7 +33,7 @@ use ifc_lite_geometry::mesh::Mesh as LiteMesh;
 mod cellular;
 
 // C++ kernels behind a C ABI (`cpp/shim.cpp`). Each takes the same host box
-// and flat `[min,max]*n` cutter array every Rust column gets, and returns the
+// and flat 8-corner (24 doubles) cutter array every Rust column gets, and returns the
 // result VOLUME (never a mesh), so a kernel that fails cannot be mistaken for
 // a fast one: failures return a negative volume and are flagged like any other
 // wrong answer.
@@ -71,11 +71,12 @@ extern "C" {
 }
 
 /// Flatten cutters to the `[min,max]*n` layout the C ABI expects.
-fn flat_cutters(openings: &[Box3]) -> Vec<f64> {
-    let mut v = Vec::with_capacity(openings.len() * 6);
+fn flat_cutters(openings: &[Obb]) -> Vec<f64> {
+    let mut v = Vec::with_capacity(openings.len() * 24);
     for o in openings {
-        v.extend_from_slice(&o.min);
-        v.extend_from_slice(&o.max);
+        for c in o.corners() {
+            v.extend_from_slice(&c);
+        }
     }
     v
 }
@@ -126,6 +127,31 @@ fn axiolid_box(b: Box3) -> TriMesh {
     TriMesh::new(positions, BOX_TRIS.to_vec())
 }
 
+/// Triangle mesh for an oriented box, same index table as [`axiolid_box`].
+fn axiolid_obb(o: Obb) -> TriMesh {
+    let positions = o
+        .corners()
+        .iter()
+        .map(|c| Point3::new(c[0], c[1], c[2]))
+        .collect();
+    TriMesh::new(positions, BOX_TRIS.to_vec())
+}
+
+/// ifc-lite mesh for an oriented box.
+fn lite_obb(o: Obb) -> LiteMesh {
+    let mut m = LiteMesh::new();
+    for c in o.corners() {
+        m.positions.push(c[0] as f32);
+        m.positions.push(c[1] as f32);
+        m.positions.push(c[2] as f32);
+        m.normals.extend_from_slice(&[0.0, 0.0, 1.0]);
+    }
+    for &i in BOX_TRIS.iter() {
+        m.indices.push(i);
+    }
+    m
+}
+
 fn lite_box(b: Box3) -> LiteMesh {
     let mut m = LiteMesh::new();
     for c in b.corners() {
@@ -174,6 +200,16 @@ fn lite_volume(m: &LiteMesh) -> f64 {
             m.positions[i + 2] as f64,
         ]
     })
+}
+
+/// The same oriented box as a raw `boolmesh::Manifold`.
+fn to_manifold_obb(o: Obb) -> boolmesh::prelude::Manifold {
+    let mut pos = Vec::with_capacity(24);
+    for c in o.corners() {
+        pos.extend_from_slice(&c);
+    }
+    let idx: Vec<usize> = BOX_TRIS.iter().map(|&i| i as usize).collect();
+    boolmesh::prelude::Manifold::new(&pos, &idx).expect("raw boolmesh manifold")
 }
 
 /// The same box as a raw `boolmesh::Manifold`, bypassing axiolid's provider.
@@ -227,6 +263,177 @@ fn wall_with_flush_openings(n: usize) -> (Box3, Vec<Box3>) {
 fn expected_flush_volume(n: usize) -> f64 {
     let wall = (n as f64 + 1.0) * 0.2 * 3.0;
     wall - n as f64 * (0.5 * 0.2 * 3.0)
+}
+
+/// A wall whose openings are ROTATED in plan, so no cut plane is axis-aligned.
+///
+/// Every analytic fast path here (`rect_fast`, `cellular`) is defined only for
+/// axis-aligned operands, so this workload forces them to decline and exposes
+/// what the general solver actually costs. That is the point: the headline
+/// speedups on the other two workloads are real but conditional, and a chart
+/// that never shows the condition failing overstates them.
+///
+/// The rotation is 30 degrees, well away from a multiple of 90 where the boxes
+/// would be accidentally axis-aligned again.
+fn wall_with_rotated_openings(n: usize) -> (Box3, Vec<Obb>) {
+    let length = n as f64 + 1.0;
+    let wall = Box3::new(length / 2.0, 0.1, 1.5, length, 0.2, 3.0);
+    let openings = (0..n)
+        .map(|i| Obb {
+            centre: [0.75 + i as f64, 0.1, 1.0],
+            half: [0.25, 0.5, 0.5],
+            angle: std::f64::consts::FRAC_PI_6,
+        })
+        .collect();
+    (wall, openings)
+}
+
+/// Signed area of a polygon by the shoelace formula.
+fn shoelace(poly: &[[f64; 2]]) -> f64 {
+    let mut acc = 0.0;
+    for i in 0..poly.len() {
+        let a = poly[i];
+        let b = poly[(i + 1) % poly.len()];
+        acc += a[0] * b[1] - b[0] * a[1];
+    }
+    0.5 * acc
+}
+
+/// Clip a convex polygon to the half-plane `keep`, Sutherland-Hodgman.
+fn clip_half_plane(poly: &[[f64; 2]], keep: impl Fn([f64; 2]) -> f64) -> Vec<[f64; 2]> {
+    let mut out: Vec<[f64; 2]> = Vec::new();
+    for i in 0..poly.len() {
+        let cur = poly[i];
+        let prev = poly[(i + poly.len() - 1) % poly.len()];
+        let (dc, dp) = (keep(cur), keep(prev));
+        // Crossing the boundary contributes the intersection point; `dp - dc`
+        // is non-zero exactly when the sign differs, so this cannot divide by 0.
+        if (dc >= 0.0) != (dp >= 0.0) {
+            let t = dp / (dp - dc);
+            out.push([prev[0] + t * (cur[0] - prev[0]), prev[1] + t * (cur[1] - prev[1])]);
+        }
+        if dc >= 0.0 {
+            out.push(cur);
+        }
+    }
+    out
+}
+
+/// Ground truth for [`wall_with_rotated_openings`], derived not measured.
+///
+/// Each opening removes (its footprint clipped to the wall's XY rectangle)
+/// times (its Z overlap with the wall). The footprint is a rotated rectangle,
+/// so the clipped area is computed exactly rather than assumed: at 30 degrees
+/// the opening is wider than the 0.2 wall in Y, so a naive `w * d * h` would
+/// be wrong. Openings are spaced 1.0 apart with a 0.5 diagonal half-extent, so
+/// they never touch each other and the removed volumes simply sum.
+fn expected_rotated_volume(n: usize) -> f64 {
+    let (wall, openings) = wall_with_rotated_openings(n);
+    let wall_volume = (wall.max[0] - wall.min[0])
+        * (wall.max[1] - wall.min[1])
+        * (wall.max[2] - wall.min[2]);
+
+    let mut removed = 0.0;
+    for o in &openings {
+        let mut poly: Vec<[f64; 2]> = o.footprint().to_vec();
+        poly = clip_half_plane(&poly, |p| p[0] - wall.min[0]);
+        poly = clip_half_plane(&poly, |p| wall.max[0] - p[0]);
+        poly = clip_half_plane(&poly, |p| p[1] - wall.min[1]);
+        poly = clip_half_plane(&poly, |p| wall.max[1] - p[1]);
+        if poly.len() < 3 {
+            continue;
+        }
+        let area = shoelace(&poly).abs();
+        let z_lo = (o.centre[2] - o.half[2]).max(wall.min[2]);
+        let z_hi = (o.centre[2] + o.half[2]).min(wall.max[2]);
+        removed += area * (z_hi - z_lo).max(0.0);
+    }
+    wall_volume - removed
+}
+
+/// A box that may be rotated about the Z axis through its own centre.
+///
+/// IFC openings are not always axis-aligned: a wall skewed in plan carries
+/// openings skewed with it. `angle == 0` is the axis-aligned case and is still
+/// exactly representable, so one type covers every workload here.
+#[derive(Clone, Copy)]
+struct Obb {
+    centre: [f64; 3],
+    half: [f64; 3],
+    /// Radians about +Z through `centre`.
+    angle: f64,
+}
+
+impl Obb {
+    /// Lift an axis-aligned box. Kept exact: no rotation is applied.
+    fn aabb(b: Box3) -> Self {
+        Self {
+            centre: [
+                0.5 * (b.min[0] + b.max[0]),
+                0.5 * (b.min[1] + b.max[1]),
+                0.5 * (b.min[2] + b.max[2]),
+            ],
+            half: [
+                0.5 * (b.max[0] - b.min[0]),
+                0.5 * (b.max[1] - b.min[1]),
+                0.5 * (b.max[2] - b.min[2]),
+            ],
+            angle: 0.0,
+        }
+    }
+
+    /// The axis-aligned box this represents, or `None` when rotated.
+    ///
+    /// Analytic fast paths are only valid for axis-aligned operands, so they
+    /// ask through this and decline rather than cutting the wrong solid.
+    fn as_aabb(&self) -> Option<Box3> {
+        if self.angle != 0.0 {
+            return None;
+        }
+        Some(Box3 {
+            min: [
+                self.centre[0] - self.half[0],
+                self.centre[1] - self.half[1],
+                self.centre[2] - self.half[2],
+            ],
+            max: [
+                self.centre[0] + self.half[0],
+                self.centre[1] + self.half[1],
+                self.centre[2] + self.half[2],
+            ],
+        })
+    }
+
+    /// The 8 corners, in the SAME order as [`Box3::corners`] so both share one
+    /// triangle index table and no kernel sees a different winding.
+    fn corners(&self) -> [[f64; 3]; 8] {
+        let (sin, cos) = self.angle.sin_cos();
+        let (hx, hy, hz) = (self.half[0], self.half[1], self.half[2]);
+        let mut out = [[0.0; 3]; 8];
+        let mut i = 0;
+        for &dz in &[-hz, hz] {
+            for &(dx, dy) in &[(-hx, -hy), (hx, -hy), (hx, hy), (-hx, hy)] {
+                out[i] = [
+                    self.centre[0] + dx * cos - dy * sin,
+                    self.centre[1] + dx * sin + dy * cos,
+                    self.centre[2] + dz,
+                ];
+                i += 1;
+            }
+        }
+        out
+    }
+
+    /// Footprint in the XY plane, counter-clockwise, for exact area work.
+    fn footprint(&self) -> [[f64; 2]; 4] {
+        let c = self.corners();
+        [
+            [c[0][0], c[0][1]],
+            [c[1][0], c[1][1]],
+            [c[2][0], c[2][1]],
+            [c[3][0], c[3][1]],
+        ]
+    }
 }
 
 /// Ground truth for [`wall_and_openings`], derived not measured.
@@ -449,24 +656,36 @@ fn main() {
     // cut planes, which is where kernels genuinely disagree.
     type Workload = (
         &'static str,
-        fn(usize) -> (Box3, Vec<Box3>),
+        fn(usize) -> (Box3, Vec<Obb>),
         fn(usize) -> f64,
     );
-    let workloads: [Workload; 2] = [
-        ("offset", wall_and_openings, expected_volume),
-        ("flush", wall_with_flush_openings, expected_flush_volume),
+    fn offset_obb(n: usize) -> (Box3, Vec<Obb>) {
+        let (w, o) = wall_and_openings(n);
+        (w, o.into_iter().map(Obb::aabb).collect())
+    }
+    fn flush_obb(n: usize) -> (Box3, Vec<Obb>) {
+        let (w, o) = wall_with_flush_openings(n);
+        (w, o.into_iter().map(Obb::aabb).collect())
+    }
+    let workloads: [Workload; 3] = [
+        ("offset", offset_obb, expected_volume),
+        ("flush", flush_obb, expected_flush_volume),
+        ("rotated", wall_with_rotated_openings, expected_rotated_volume),
     ];
 
     for (workload, generate, ground_truth) in workloads {
         if !json && workload == "flush" {
             println!("\n-- coincident cut planes (openings flush with the wall's faces) --");
         }
+        if !json && workload == "rotated" {
+            println!("\n-- rotated openings (30 deg in plan; analytic paths must decline) --");
+        }
         for &n in &[1usize, 4, 16, 64] {
             let (wall, openings) = generate(n);
 
             // --- axiolid: subtract_many through the provider contract ---
             let ax_host = axiolid_box(wall);
-            let ax_tools: Vec<TriMesh> = openings.iter().map(|o| axiolid_box(*o)).collect();
+            let ax_tools: Vec<TriMesh> = openings.iter().map(|o| axiolid_obb(*o)).collect();
             let (ax_ms, ax_out) = best_of(reps, || {
                 provider
                     .subtract_many(&ax_host, &ax_tools, &options)
@@ -477,7 +696,7 @@ fn main() {
 
             // --- ifc-lite: general exact mesh-arrangement kernel ---
             let lite_host = lite_box(wall);
-            let lite_tools: Vec<LiteMesh> = openings.iter().map(|o| lite_box(*o)).collect();
+            let lite_tools: Vec<LiteMesh> = openings.iter().map(|o| lite_obb(*o)).collect();
             let (lk_ms, lk_vol) = {
                 let refs: Vec<&LiteMesh> = lite_tools.iter().collect();
                 let (ms, out) = best_of(reps, || {
@@ -490,18 +709,26 @@ fn main() {
             };
 
             // --- ifc-lite: analytic rect_fast cellular path ---
-            let boxes: Vec<([f64; 3], [f64; 3])> =
-                openings.iter().map(|o| (o.min, o.max)).collect();
-            let (rf_ms, rf_vol) = {
-                let (ms, out) = best_of(reps, || {
-                    let mut stats = ifc_lite_geometry::RectFastStats::default();
-                    ifc_lite_geometry::rect_fast::subtract_rect_openings(
-                        &lite_host, &boxes, &mut stats,
-                    )
-                });
-                match out {
-                    Some(m) => (ms, Some(lite_volume(&m))),
-                    None => (ms, None),
+            // `None` as soon as any opening is rotated: both analytic paths are
+            // defined only for axis-aligned operands. Declining is the correct
+            // answer, and the table renders it as `n/a` rather than a timing.
+            let boxes: Option<Vec<([f64; 3], [f64; 3])>> = openings
+                .iter()
+                .map(|o| o.as_aabb().map(|b| (b.min, b.max)))
+                .collect();
+            let (rf_ms, rf_vol) = match &boxes {
+                None => (f64::NAN, None),
+                Some(boxes) => {
+                    let (ms, out) = best_of(reps, || {
+                        let mut stats = ifc_lite_geometry::RectFastStats::default();
+                        ifc_lite_geometry::rect_fast::subtract_rect_openings(
+                            &lite_host, boxes, &mut stats,
+                        )
+                    });
+                    match out {
+                        Some(m) => (ms, Some(lite_volume(&m))),
+                        None => (ms, None),
+                    }
                 }
             };
 
@@ -510,18 +737,21 @@ fn main() {
             // (BTreeMap) vertex identity so its output is byte-reproducible --
             // unlike the general boolean path, which inherits upstream boolmesh's
             // HashMap-seeded instability.
-            let (cell_ms, cell_vol) = {
-                let (ms, out) = best_of(reps, || {
-                    cellular::subtract_boxes((wall.min, wall.max), &boxes, 1 << 20)
-                });
-                match out {
-                    Some(c) => (
-                        ms,
-                        Some(signed_volume(triples(&c.indices), |i| {
-                            c.positions[i as usize]
-                        })),
-                    ),
-                    None => (ms, None),
+            let (cell_ms, cell_vol) = match &boxes {
+                None => (f64::NAN, None),
+                Some(boxes) => {
+                    let (ms, out) = best_of(reps, || {
+                        cellular::subtract_boxes((wall.min, wall.max), boxes, 1 << 20)
+                    });
+                    match out {
+                        Some(c) => (
+                            ms,
+                            Some(signed_volume(triples(&c.indices), |i| {
+                                c.positions[i as usize]
+                            })),
+                        ),
+                        None => (ms, None),
+                    }
                 }
             };
 
@@ -567,7 +797,7 @@ fn main() {
             // checking, and evidence/connected-component construction.
             let (raw_ms, raw_vol) = {
                 let host = to_manifold_box(wall);
-                let tools: Vec<_> = openings.iter().map(|o| to_manifold_box(*o)).collect();
+                let tools: Vec<_> = openings.iter().map(|o| to_manifold_obb(*o)).collect();
                 let (ms, out) = best_of(reps, || {
                     let mut acc = host.clone();
                     for t in &tools {
