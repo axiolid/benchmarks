@@ -84,3 +84,28 @@ cd viewer && pnpm install && pnpm build && node server.mjs
 
 Serves on `127.0.0.1:8095`. `/api/results` shells out to the release binary on
 every request, so the charts always show a real run.
+
+## Comparing two kernel revisions
+
+```
+python3 scripts/compare-revisions.py --base v0.13.0 --head main
+python3 scripts/compare-revisions.py --base HEAD~1 --head HEAD --workload 64
+```
+
+Materialises each revision as a detached `git worktree`, copies the harness,
+rewrites its path dependencies to point at that revision, and runs both sides
+through the same `--json` path. No submodule: the kernel is located by path at
+build time, so any checkout works.
+
+Two mechanisms do NOT work and were tried first: cargo's `paths` override does
+not apply to path dependencies (the build silently keeps the original kernel),
+and the `AXIOLID_KERNEL_DIR` variable named in `Cargo.toml`'s comment was never
+implemented. Rewriting the copied manifest is what actually redirects the build.
+
+**A flagged row is a hint, not a verdict.** Comparing v0.13.0 with v0.14.0 --
+a change that touched only a curvature-law enum and cannot affect booleans --
+individual rows still moved up to 24%, `raw_boolmesh` included, whose code is
+byte-identical across both. Wall-clock on a shared machine is that noisy. For
+a trustworthy pass/fail signal use the kernel's deterministic instruction-count
+benchmarks; this script exists for what those cannot do -- comparing against
+other kernels.
