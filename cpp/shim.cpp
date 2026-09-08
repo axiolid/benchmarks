@@ -114,6 +114,56 @@ extern "C" int bench_manifold_menger_holes(int depth) {
   }
   return total;
 }
+// ---------------------------------------------------- arbitrary mesh operands
+//
+// Every entry point above is box-parameterised: the caller passes corners and
+// the shim builds the solid. That makes non-box geometry unreachable, which is
+// why the harness had no curved workload at all.
+//
+// These take triangle meshes directly -- (verts, nverts, tris, ntris) per
+// operand -- so any closed mesh the Rust side can build is measurable on every
+// kernel. Vertices are 3 doubles each, triangles 3 uint32 indices each, in the
+// same layout `TriMesh` already uses, so no conversion happens on the Rust
+// side where it would be timed.
+//
+// Returns the result volume, or -1.0 if the kernel declined. The caller
+// renders a negative return as "no answer" rather than feeding it to an error
+// formula, where it would look like a merely inaccurate number.
+static Manifold mesh_of(const double* verts, int nverts, const uint32_t* tris,
+                        int ntris) {
+  manifold::MeshGL64 mesh;
+  mesh.numProp = 3;
+  mesh.vertProperties.reserve(static_cast<size_t>(nverts) * 3);
+  for (int i = 0; i < nverts * 3; ++i) mesh.vertProperties.push_back(verts[i]);
+  mesh.triVerts.reserve(static_cast<size_t>(ntris) * 3);
+  for (int i = 0; i < ntris * 3; ++i) mesh.triVerts.push_back(tris[i]);
+  return Manifold(mesh);
+}
+
+extern "C" double bench_manifold_mesh_op(const double* verts_a, int nverts_a,
+                                         const uint32_t* tris_a, int ntris_a,
+                                         const double* verts_b, int nverts_b,
+                                         const uint32_t* tris_b, int ntris_b,
+                                         int op) {
+  Manifold a = mesh_of(verts_a, nverts_a, tris_a, ntris_a);
+  Manifold b = mesh_of(verts_b, nverts_b, tris_b, ntris_b);
+  OpType type;
+  switch (op) {
+    case BENCH_OP_DIFFERENCE:
+      type = OpType::Subtract;
+      break;
+    case BENCH_OP_UNION:
+      type = OpType::Add;
+      break;
+    case BENCH_OP_INTERSECTION:
+      type = OpType::Intersect;
+      break;
+    default:
+      return -1.0;
+  }
+  return a.Boolean(b, type).Volume();
+}
+
 #endif  // HAS_MANIFOLD
 
 #ifdef HAS_CGAL
@@ -206,6 +256,52 @@ extern "C" double bench_cgal_subtract(const double* host_min,
     acc = std::move(out);
   }
   return CGAL::to_double(PMP::volume(acc));
+}
+
+// Arbitrary mesh operands; see the Manifold equivalent above for the layout
+// contract. CGAL needs the mesh assembled vertex-by-vertex through its own
+// index type, and orientation matters: `corefine_and_compute_*` requires
+// bounded volumes, so an inside-out operand would silently invert the answer.
+static CgalMesh cgal_mesh(const double* verts, int nverts, const uint32_t* tris,
+                          int ntris) {
+  CgalMesh m;
+  std::vector<CgalMesh::Vertex_index> handles;
+  handles.reserve(nverts);
+  for (int i = 0; i < nverts; ++i) {
+    handles.push_back(
+        m.add_vertex(CgalK::Point_3(verts[i * 3], verts[i * 3 + 1], verts[i * 3 + 2])));
+  }
+  for (int i = 0; i < ntris; ++i) {
+    m.add_face(handles[tris[i * 3]], handles[tris[i * 3 + 1]],
+               handles[tris[i * 3 + 2]]);
+  }
+  return m;
+}
+
+extern "C" double bench_cgal_mesh_op(const double* verts_a, int nverts_a,
+                                     const uint32_t* tris_a, int ntris_a,
+                                     const double* verts_b, int nverts_b,
+                                     const uint32_t* tris_b, int ntris_b,
+                                     int op) {
+  CgalMesh a = cgal_mesh(verts_a, nverts_a, tris_a, ntris_a);
+  CgalMesh b = cgal_mesh(verts_b, nverts_b, tris_b, ntris_b);
+  CgalMesh out;
+  bool ok = false;
+  switch (op) {
+    case BENCH_OP_DIFFERENCE:
+      ok = PMP::corefine_and_compute_difference(a, b, out);
+      break;
+    case BENCH_OP_UNION:
+      ok = PMP::corefine_and_compute_union(a, b, out);
+      break;
+    case BENCH_OP_INTERSECTION:
+      ok = PMP::corefine_and_compute_intersection(a, b, out);
+      break;
+    default:
+      return -1.0;
+  }
+  if (!ok) return -1.0;
+  return CGAL::to_double(PMP::volume(out));
 }
 
 #endif  // HAS_CGAL
