@@ -141,7 +141,7 @@ dependencies = [
  "axiolid-mesh",
  "axiolid-mesh-boolean-contract",
  "axiolid-mesh-contracts",
- "boolmesh",
+ "glam 0.30.10",
 ]
 
 [[package]]
