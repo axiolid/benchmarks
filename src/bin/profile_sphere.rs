@@ -115,14 +115,28 @@ fn main() {
     let options = ExecutionOptions::new(Tolerance::METRE);
 
     let mut checksum = 0.0f64;
+    let mut times: Vec<f64> = Vec::with_capacity(iterations as usize);
     for i in 0..iterations {
-        match provider.boolean(&a, &b, op, &options) {
-            Ok(r) => checksum += r.mesh.positions.len() as f64,
+        let start = std::time::Instant::now();
+        let outcome = provider.boolean(&a, &b, op, &options);
+        let elapsed = start.elapsed().as_secs_f64() * 1000.0;
+        match outcome {
+            Ok(r) => {
+                checksum += r.mesh.positions.len() as f64;
+                times.push(elapsed);
+            }
             Err(e) => {
                 eprintln!("iteration {i} failed: {e}");
                 std::process::exit(1);
             }
         }
     }
+    // Best-of, not mean: the fastest run is the one least perturbed by
+    // scheduling noise, and this is a comparison against a prior build
+    // rather than a throughput claim.
+    times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let best = times.first().copied().unwrap_or(0.0);
+    let median = times[times.len() / 2];
     println!("checksum={checksum}");
+    println!("best_ms={best:.1} median_ms={median:.1}");
 }
