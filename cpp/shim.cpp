@@ -7,6 +7,7 @@
 
 #ifdef HAS_MANIFOLD
 #include <manifold/manifold.h>
+#include <cstdint>
 #include <vector>
 
 using manifold::Manifold;
@@ -62,6 +63,56 @@ extern "C" double bench_manifold_op(const double* host_min,
     case BENCH_OP_INTERSECTION: return a.Boolean(b, OpType::Intersect).Volume();
     default: return -1.0;
   }
+}
+
+// -------------------------------------------------------------- Menger sponge
+// Two constructions, deliberately both present.
+//
+// `bench_manifold_menger_composed` is Manifold's OWN samples/src/
+// menger_sponge.cpp algorithm, reproduced so the published depth-4 timing has
+// something comparable here. It exploits the fact that a Menger sponge is the
+// intersection of three orthogonal Sierpinski-carpet prisms: build the carpet
+// holes once, batch-union them, then subtract three rotations. That is
+// (8^d-1)/7 holes and FOUR boolean operations, regardless of depth.
+//
+// The flattened form measured elsewhere in this harness subtracts every void
+// box separately -- 58947 operations at depth 4. Comparing the two numbers
+// directly is meaningless; they are different algorithms.
+static void menger_fractal(std::vector<Manifold>& holes, Manifold& hole,
+                           double w, double px, double py, int depth,
+                           int max_depth) {
+  w /= 3;
+  holes.push_back(hole.Scale(vec3(w, w, 1.0)).Translate(vec3(px, py, 0.0)));
+  if (depth == max_depth) return;
+  const double off[8][2] = {{-w, -w}, {-w, 0.0}, {-w, w}, {0.0, w},
+                            {w, w},   {w, 0.0},  {w, -w}, {0.0, -w}};
+  for (int i = 0; i < 8; ++i) {
+    menger_fractal(holes, hole, w, px + off[i][0], py + off[i][1], depth + 1,
+                   max_depth);
+  }
+}
+
+extern "C" double bench_manifold_menger_composed(int depth) {
+  Manifold result = Manifold::Cube(vec3(1.0), true);
+  std::vector<Manifold> holes;
+  menger_fractal(holes, result, 1.0, 0.0, 0.0, 1, depth);
+  Manifold hole = Manifold::BatchBoolean(holes, OpType::Add);
+  result = result.Boolean(hole, OpType::Subtract);
+  hole = hole.Rotate(90);
+  result = result.Boolean(hole, OpType::Subtract);
+  hole = hole.Rotate(0, 0, 90);
+  result = result.Boolean(hole, OpType::Subtract);
+  return result.Volume();
+}
+
+// How many carpet holes one orientation uses: (8^depth - 1) / 7.
+extern "C" int bench_manifold_menger_holes(int depth) {
+  int total = 0, level = 1;
+  for (int i = 0; i < depth; ++i) {
+    total += level;
+    level *= 8;
+  }
+  return total;
 }
 #endif  // HAS_MANIFOLD
 

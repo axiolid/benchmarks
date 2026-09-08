@@ -27,6 +27,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 name = "axiolid-benchmarks"
 version = "0.1.0"
 dependencies = [
+ "axiolid-construct",
  "axiolid-contracts",
  "axiolid-core",
  "axiolid-mesh",
@@ -38,8 +39,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "axiolid-brep"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+ "axiolid-curve",
+ "axiolid-surface",
+ "axiolid-topology",
+]
+
+[[package]]
+name = "axiolid-construct"
+version = "0.14.0"
+dependencies = [
+ "axiolid-brep",
+ "axiolid-contracts",
+ "axiolid-core",
+ "axiolid-curve",
+ "axiolid-guarantees",
+ "axiolid-mesh",
+ "axiolid-mesh-boolean-contract",
+ "axiolid-mesh-contracts",
+ "axiolid-nurbs",
+ "axiolid-overlay",
+ "axiolid-predicates",
+ "axiolid-primitive",
+ "axiolid-profile",
+ "axiolid-reference",
+ "axiolid-surface",
+ "axiolid-tessellation-contract",
+ "axiolid-topology",
+ "earcut",
+]
+
+[[package]]
 name = "axiolid-contracts"
-version = "0.4.0"
+version = "0.14.0"
 dependencies = [
  "axiolid-core",
  "axiolid-guarantees",
@@ -48,25 +83,58 @@ dependencies = [
 
 [[package]]
 name = "axiolid-core"
-version = "0.4.0"
+version = "0.14.0"
 dependencies = [
  "glam 0.29.3",
 ]
 
 [[package]]
+name = "axiolid-curve"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+ "axiolid-linear",
+]
+
+[[package]]
+name = "axiolid-evaluate"
+version = "0.14.0"
+dependencies = [
+ "axiolid-contracts",
+ "axiolid-core",
+ "axiolid-curve",
+ "axiolid-surface",
+]
+
+[[package]]
 name = "axiolid-guarantees"
-version = "0.4.0"
+version = "0.14.0"
+
+[[package]]
+name = "axiolid-linear"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+]
+
+[[package]]
+name = "axiolid-measure"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+ "axiolid-mesh",
+]
 
 [[package]]
 name = "axiolid-mesh"
-version = "0.4.0"
+version = "0.14.0"
 dependencies = [
  "axiolid-core",
 ]
 
 [[package]]
 name = "axiolid-mesh-boolean-boolmesh"
-version = "0.4.0"
+version = "0.14.0"
 dependencies = [
  "axiolid-contracts",
  "axiolid-core",
@@ -78,7 +146,7 @@ dependencies = [
 
 [[package]]
 name = "axiolid-mesh-boolean-contract"
-version = "0.4.0"
+version = "0.14.0"
 dependencies = [
  "axiolid-contracts",
  "axiolid-core",
@@ -88,11 +156,130 @@ dependencies = [
 
 [[package]]
 name = "axiolid-mesh-contracts"
-version = "0.4.0"
+version = "0.14.0"
 dependencies = [
  "axiolid-contracts",
  "axiolid-core",
  "axiolid-mesh",
+]
+
+[[package]]
+name = "axiolid-mesh-section-contract"
+version = "0.14.0"
+dependencies = [
+ "axiolid-contracts",
+ "axiolid-core",
+ "axiolid-mesh",
+ "axiolid-mesh-contracts",
+]
+
+[[package]]
+name = "axiolid-model"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+ "axiolid-curve",
+ "axiolid-mesh",
+ "axiolid-primitive",
+ "axiolid-profile",
+ "axiolid-surface",
+ "axiolid-topology",
+]
+
+[[package]]
+name = "axiolid-nurbs"
+version = "0.14.0"
+dependencies = [
+ "axiolid-contracts",
+ "axiolid-core",
+ "axiolid-curve",
+ "axiolid-evaluate",
+ "axiolid-guarantees",
+ "axiolid-predicates",
+ "axiolid-surface",
+]
+
+[[package]]
+name = "axiolid-overlay"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+ "i_overlay 4.5.2",
+]
+
+[[package]]
+name = "axiolid-predicates"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+ "axiolid-guarantees",
+]
+
+[[package]]
+name = "axiolid-primitive"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+]
+
+[[package]]
+name = "axiolid-profile"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+ "axiolid-curve",
+]
+
+[[package]]
+name = "axiolid-reference"
+version = "0.14.0"
+dependencies = [
+ "axiolid-contracts",
+ "axiolid-core",
+ "axiolid-curve",
+ "axiolid-evaluate",
+ "axiolid-guarantees",
+ "axiolid-measure",
+ "axiolid-mesh",
+ "axiolid-mesh-boolean-contract",
+ "axiolid-mesh-contracts",
+ "axiolid-mesh-section-contract",
+ "axiolid-predicates",
+ "axiolid-primitive",
+ "axiolid-spatial",
+ "axiolid-surface",
+]
+
+[[package]]
+name = "axiolid-spatial"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+]
+
+[[package]]
+name = "axiolid-surface"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+ "axiolid-curve",
+]
+
+[[package]]
+name = "axiolid-tessellation-contract"
+version = "0.14.0"
+dependencies = [
+ "axiolid-contracts",
+ "axiolid-core",
+ "axiolid-mesh",
+ "axiolid-model",
+]
+
+[[package]]
+name = "axiolid-topology"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
 ]
 
 [[package]]
@@ -175,6 +362,15 @@ name = "crossbeam-utils"
 version = "0.8.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61803da095bee82a81bb1a452ecc25d3b2f1416d1897eb86430c6159ef717c17"
+
+[[package]]
+name = "earcut"
+version = "0.4.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f03dd5350900133e14471c90d513eb5ba264004cd833adecab7dfa5fb5a2974"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "earcutr"
@@ -298,6 +494,15 @@ checksum = "21fef0953c54fd3de2f44b743fbf77e044c81a25faee03636dfccc0d35135e23"
 
 [[package]]
 name = "i_float"
+version = "1.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "813145bb0ad5b60f55cbbf3c74cdceda1c0a9d253b35c4cc36ae0df7887cb78f"
+dependencies = [
+ "libm",
+]
+
+[[package]]
+name = "i_float"
 version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c614c2cfc06cfe8809ccc48cd445864502478e673721ca2a05931fc057ec33a0"
@@ -307,9 +512,27 @@ dependencies = [
 
 [[package]]
 name = "i_key_sort"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d73d122b937fca067feb0ad74f62388920272b27c356d4df2d0cfdd59e044cf0"
+
+[[package]]
+name = "i_key_sort"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c6c58d0c60705e66264ce0f788a69a2f21472aeb8188559e7c8c619dbdc10fa"
+
+[[package]]
+name = "i_overlay"
+version = "4.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dd314b4668e2b3a12508f2e125558c82a6c0a8636fa5107a900f79ce414e450"
+dependencies = [
+ "i_float 1.16.0",
+ "i_key_sort 0.10.3",
+ "i_shape 1.18.0",
+ "i_tree 0.18.0",
+]
 
 [[package]]
 name = "i_overlay"
@@ -317,10 +540,19 @@ version = "8.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca5d3f41731d03eafa48213609113563099a479f593cc7c635b7e836fc52a3c8"
 dependencies = [
- "i_float",
- "i_key_sort",
- "i_shape",
- "i_tree",
+ "i_float 4.1.0",
+ "i_key_sort 0.11.0",
+ "i_shape 4.0.0",
+ "i_tree 0.19.0",
+]
+
+[[package]]
+name = "i_shape"
+version = "1.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfa9eac533d7509a8ab87672b60ac610c17240f9ea4851d26227689fdfe349c8"
+dependencies = [
+ "i_float 1.16.0",
 ]
 
 [[package]]
@@ -329,8 +561,14 @@ version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67ec1fc3ad980a24e4761b763bf5bfbf58c1d88be1bffb14654d369d7f420258"
 dependencies = [
- "i_float",
+ "i_float 4.1.0",
 ]
+
+[[package]]
+name = "i_tree"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4804bdc1dc124eb7e1aa9e144ecc04096bcf787a10a15fa44af682b51f0f6cce"
 
 [[package]]
 name = "i_tree"
@@ -360,7 +598,7 @@ dependencies = [
  "bnum",
  "earcutr",
  "geometry-predicates",
- "i_overlay",
+ "i_overlay 8.1.0",
  "ifc-lite-core",
  "jpeg-decoder",
  "memchr",

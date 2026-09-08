@@ -16,6 +16,10 @@ axiolid-contracts = { path = "../kernel/crates/contracts/common/base" }
 axiolid-mesh-boolean-contract = { path = "../kernel/crates/contracts/operations/mesh-boolean" }
 axiolid-mesh-boolean-boolmesh = { path = "../kernel/crates/providers/mesh/boolmesh" }
 
+# #77 exact boolean over planar-faced solids, to measure whether routing
+# through it avoids boolmesh's failure mode on coincident planes.
+axiolid-construct = { path = "../kernel/crates/algorithms/construction/construct" }
+
 # ifc-lite geometry kernel, driven directly through its public API.
 ifc-lite-geometry = { path = "../../ifclite/rust/geometry" }
 

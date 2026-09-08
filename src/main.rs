@@ -33,6 +33,7 @@ use ifc_lite_geometry::mesh::Mesh as LiteMesh;
 mod cellular;
 mod drift;
 mod exactness;
+mod menger;
 mod ops;
 mod sliver;
 
@@ -473,6 +474,16 @@ fn expected_volume(n: usize) -> f64 {
 }
 
 /// Best-of-N wall-clock in milliseconds, after one warm-up.
+/// Menger depth, default 3. Depth 4 is 21_527 cutters and can run for
+/// minutes on the slower kernels, so it is opt-in via AXIOLID_MENGER_DEPTH
+/// rather than part of the default sweep.
+fn menger_depth() -> u32 {
+    std::env::var("AXIOLID_MENGER_DEPTH")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(3)
+}
+
 fn best_of<T, F: FnMut() -> T>(reps: usize, mut f: F) -> (f64, T) {
     let mut out = f(); // warm-up, discarded
     let mut best = f64::MAX;
@@ -958,6 +969,12 @@ fn main() {
     exactness::report(false);
     drift::drift_report();
     sliver::report();
+    menger::report(reps, menger_depth());
+    menger::composed_report(reps, menger_depth());
+    menger::cellular_report(reps, menger_depth());
+    // Capped at 3: depth 4 is 58947 sequential exact booleans.
+    menger::exact_report(menger_depth().min(3));
+    // Start at subdivision 4 (5120 tris); heavier levels are opt-in.
 
     if wrong > 0 {
         println!("\n{wrong} volume mismatch(es) -- timings above are not comparable.");
