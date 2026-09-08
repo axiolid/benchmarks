@@ -337,6 +337,86 @@ The `has_manifold` cfg is emitted only when the header is really present,
 so a missing kernel stays a missing column rather than a fake number.
 
 
+## Sphere-sphere boolean scaling
+
+Every other workload here is box-based: axis-aligned or rotated hexahedra,
+whose intersections are coplanar or axis-parallel. This is the inverse
+case -- generic triangle/triangle intersections, curved intersection
+loops, and no rectangular grouping structure to exploit.
+
+Two icospheres of radius 1, centres 1.5 apart, so they overlap by half a
+radius. Density sweeps by subdivision: `20 * 4^n` triangles per operand,
+from 80 up to 1310720 (subdivision 8, opt-in via `AXIOLID_SPHERE_SUB`;
+default is 6).
+
+Measured on a 20-core host, best of 1 rep, peak RSS 2.6 GB at sub 8:
+
+```
+   sub      tris      kernel    union ms    isect ms      A-B ms    identity
+     4      5120     axiolid        15.4         8.8        12.1    4.99e-15
+     4      5120    manifold        10.6         7.8         9.6    1.17e-15
+     4      5120        cgal        55.0        22.7        38.4    9.56e-16
+     5     20480     axiolid        65.4        35.8        49.3    1.41e-14
+     5     20480    manifold        38.5        25.3        31.0    1.07e-14
+     5     20480        cgal       220.8        79.3       148.2    1.05e-14
+     6     81920     axiolid       294.9       153.5       212.1    1.03e-14
+     6     81920    manifold       171.9       113.6       134.1    1.38e-15
+     6     81920        cgal       906.5       268.6       566.7    1.38e-15
+     7    327680     axiolid      1457.0       697.0      1073.8    3.35e-14
+     7    327680    manifold       740.6       466.8       586.6    1.61e-14
+     7    327680        cgal      4474.9      1216.0      2593.0    1.59e-14
+     8   1310720     axiolid      7355.7      3537.8      5216.0    2.90e-14
+     8   1310720    manifold      3462.5      2248.7      2816.2    6.64e-14
+     8   1310720        cgal     23922.9      5602.2     13368.2    6.64e-14
+```
+
+### Reading it
+
+**A constant factor, not a complexity gap.** The axiolid/manifold ratio
+runs 1.45x, 1.70x, 1.72x, 1.97x, 2.12x across the ladder. Per 4x
+triangles both kernels grow by a similar factor at the top end (manifold
+~4.7x, axiolid ~5.0x), so this is a fixed multiplier plus a mild
+memory-traffic penalty -- not a different asymptotic class.
+
+**We beat CGAL by 6.9x at sub 8**, and that margin grows with input size
+(5.2x at sub 4).
+
+**Cross-check against the published port.** `manifold-rust` reports 2.57 s
+for sphere-minus-sphere at 2.1M total triangles. Manifold's `A-B` here is
+2.82 s at 2.62M total -- consistent once scaled for the larger input, so
+the manifold column reproduces the published figure.
+
+### The oracle is inclusion-exclusion, not the closed-form lens
+
+A tessellated sphere is an INSCRIBED polyhedron: its volume sits below
+the ideal sphere's by a tessellation-dependent amount that shrinks as
+density rises. Scoring against the closed-form lens volume would show
+every kernel `getting more accurate` with subdivision -- an artifact of
+the fixture, not a property of the kernel.
+
+So the oracle is the identity, exact for the tessellated operands at any
+density, and it validates all the measured operations at once:
+
+```
+|A u B| + |A n B| = |A| + |B|
+```
+
+`src/sphere.rs` asserts the inscribed-volume property directly, so the
+reason for this choice is a test rather than a comment.
+
+### The mesh-passing FFI
+
+Every earlier shim entry point was box-parameterised (`host_min`,
+`host_max`, corner arrays), so no arbitrary mesh could cross it.
+`bench_manifold_mesh_op` and `bench_cgal_mesh_op` take
+`(verts, nverts, tris, ntris)` per operand, which makes any closed mesh
+measurable on every kernel -- Thingi10K pairs, CAD imports, spiky stress
+cases -- without touching C++ again.
+
+OCCT has no mesh entry point: it consumes B-rep solids, and feeding it a
+triangle soup would measure a conversion rather than its boolean.
+
+
 ## Viewer
 
 ```

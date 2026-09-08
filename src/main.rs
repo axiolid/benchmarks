@@ -36,6 +36,7 @@ mod exactness;
 mod menger;
 mod ops;
 mod sliver;
+mod sphere;
 
 // C++ kernels behind a C ABI (`cpp/shim.cpp`). Each takes the same host box
 // and flat 8-corner (24 doubles) cutter array every Rust column gets, and returns the
@@ -477,6 +478,15 @@ fn expected_volume(n: usize) -> f64 {
 /// Menger depth, default 3. Depth 4 is 21_527 cutters and can run for
 /// minutes on the slower kernels, so it is opt-in via AXIOLID_MENGER_DEPTH
 /// rather than part of the default sweep.
+/// Sphere ladder depth, default 6 (81920 triangles). Subdivision 8 is 1.3M
+/// triangles per operand and needs several GB, so it is opt-in.
+fn sphere_max_sub() -> u32 {
+    std::env::var("AXIOLID_SPHERE_SUB")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(6)
+}
+
 fn menger_depth() -> u32 {
     std::env::var("AXIOLID_MENGER_DEPTH")
         .ok()
@@ -975,6 +985,7 @@ fn main() {
     // Capped at 3: depth 4 is 58947 sequential exact booleans.
     menger::exact_report(menger_depth().min(3));
     // Start at subdivision 4 (5120 tris); heavier levels are opt-in.
+    sphere::report(reps, sphere_max_sub());
 
     if wrong > 0 {
         println!("\n{wrong} volume mismatch(es) -- timings above are not comparable.");
