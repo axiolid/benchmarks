@@ -813,7 +813,35 @@ Two honest caveats:
   different error classes -- so the error kind here is a function of
   tolerance, not of the defect.
 
-Filed as axiolid/kernel#99. The suggested fix is to compute the signed
+Filed as axiolid/kernel#99.
+
+**Update (kernel #99 fixed).** The two contract-violation rows are gone.
+Orientation is now decided about the centroid rather than the origin, so a
+small solid far from the origin is no longer misread as inside-out. The
+sweep changes shape substantially:
+
+```
+                  before #99   after #99
+  refused              14           3
+  input-limited         2           9
+  genuine kernel        0           2
+```
+
+The two "genuine kernel" rows are NOT a regression. Both previously
+refused with `invalid geometry input` -- the false rejection #99 describes
+-- and now compute:
+
+```
+  1e-6 @ 1e6   REFUSED  ->  vol err 4.9e-5 (input 2.3e-5)
+  1e0  @ 1e9   REFUSED  ->  vol err 4.6e-9 (input 6.6e-10)
+```
+
+At ~9 representable steps across the feature, an output error a few times
+the input damage is the precision limit showing through, not a defect. The
+fixture reports them as kernel error because output exceeds input error,
+which is the correct rule -- but the honest reading is that these rows sit
+at the edge of what f64 can represent.
+ The suggested fix is to compute the signed
 volume about the centroid rather than the origin, which is translation-
 invariant and removes the cancellation.
 
