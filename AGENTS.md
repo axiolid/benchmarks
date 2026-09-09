@@ -972,3 +972,87 @@ Provider overhead is *not* the problem: at n≥4 axiolid's grouped `subtract_man
 beats a naive sequential loop over the same backend (8.1ms vs 49.4ms at n=64),
 so the grouping optimisation is already earning its keep.
 
+
+## Analytical geometry coverage (item 15 audit)
+
+The benchmark suite is entirely mesh-boolean: every fixture in `src/` runs
+`MeshBoolean`. No fixture exercises analytical/parametric geometry, even
+though the kernel has NURBS, sectioning, offset and tessellation crates.
+
+Audited against the 15 canonical cases. Kernel implementation vs BENCHMARK
+coverage are very different things -- most of these exist in the kernel with
+unit tests, and none are in the benchmark suite:
+
+| case | kernel code | kernel tests | benchmark |
+|------|-------------|--------------|-----------|
+| Steinmetz / two perpendicular cylinders | none found | none | none |
+| Sphere-sphere lens | none found | none | none |
+| Tangent sphere-sphere | via mesh boolean | `contact.rs` lattice | `contact` |
+| Cylinder-plane | `compile/src/brep.rs` | `exact_extrusion.rs` | none |
+| Cone-plane conics | `revolve_exact.rs`, `measure/src/exact.rs` | partial | none |
+| Sphere-plane | `levelset`, `evaluate/tests/surface.rs` | yes | none |
+| Torus-plane | `analytic_directrix.rs`, `brep_tessellation.rs` | yes | none |
+| Cylinder-cylinder near tangent | none found | none | none |
+| NURBS circle (rational) | `nurbs` | `surface_curve_sweep.rs` | none |
+| NURBS knot insertion | `nurbs` | `surface_insertion.rs`, `knot_removal.rs` | none |
+| NURBS degree elevation | `nurbs` | `degree_elevation.rs`, `degree_reduction.rs` | none |
+| Curve evaluate -> invert | `evaluate` | `evaluate/tests/invert.rs` | none |
+| Surface tessellation sweep | `tessellate` contract | `tessellate/tests/output.rs` | none |
+| Offset star polygon | `construct/src/offset.rs` | `overlay/tests/offset.rs` | none |
+| High-genus section | `mesh-section` | thin -- see below | `menger`, `gyroid` volume only |
+
+The three with NO kernel implementation found (Steinmetz, sphere-sphere
+lens, cylinder-cylinder near tangent) are the genuinely missing capability;
+the rest are an unexercised-in-benchmarks gap, not an absent one.
+
+### The section conformance contract was the weakest link
+
+`mesh-section`'s `ConformanceSuite` is what every section provider must
+satisfy to be registered via `register_conformant`. It sectioned a UNIT
+CUBE through the middle and asserted only:
+
+```rust
+if a.contours.is_empty() { /* fail */ }
+```
+
+Non-emptiness, evidence, determinism. Nothing about the returned geometry.
+A provider returning one contour of the wrong size, wrong shape, or wrong
+count passed the contract -- and this is the gate on the registration path,
+not an optional benchmark.
+
+Now checked against an analytic oracle on a sphere, including the
+degenerate planes:
+
+| case | plane | expected |
+|------|-------|----------|
+| `sphere central` | z=0 | 1 contour, area pi |
+| `sphere h=0.5` | z=0.5 | 1 contour, area pi*(r^2-h^2) |
+| `sphere above pole` | z=1.5 | 0 contours |
+| `sphere tangent pole` | z=1.0 | 0 contours, zero area |
+
+The tangent case is also the VERTEX-HIT case: an icosphere has a vertex at
+the pole, so the plane touches exactly one vertex.
+
+The oracle is `pi*(r^2 - h^2)` with a tolerance sized to the TESSELLATION,
+not to the provider: an icosphere inscribes its sphere, so the measured
+polygon is legitimately a little smaller than the true circle. Charging the
+provider for the caller's subdivision choice would be wrong -- the same
+principle as the swiss-cheese oracle using tessellated cutter volume.
+
+Two different heights are checked deliberately: a provider returning a
+constant area cannot satisfy both.
+
+Mutation-verified against the real `ScalarSection` provider:
+
+- inflating output coordinates by 5% -> `WrongSectionArea` on both heights
+- emitting a duplicate contour -> `WrongContourCount` on both heights
+
+Both mutations were caught and the test exits non-zero; reverting restores
+green.
+
+### Still open
+
+Contour COUNT on a high-genus section (Menger/gyroid plane cut) is the
+obvious next step -- `menger` and `gyroid` currently check volume only, and
+a plane through a Menger sponge has a known contour count that would
+exercise multi-contour handling far harder than a sphere does.
