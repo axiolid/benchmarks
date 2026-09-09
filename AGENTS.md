@@ -229,8 +229,14 @@ runtime/libc/sort/memmove/page-faults             51.8%
 **Building the half-edge structure costs more than the boolean itself.**
 There is no hotspot: the largest single entry is `Manifold::new` at 7.95%,
 and it is a constructor. Micro-optimisation cannot close a 23% gap against
-a profile shaped like this; the lead is avoiding or amortising
-`Manifold::new` across `union_many` nodes, which is a design change.
+a profile shaped like this.
+
+That construction share initially looked like a lead -- amortise
+`Manifold::new` across `union_many` nodes. **It is not one**, and the
+measurement that killed it is below under "The construction-reuse option,
+sized and declined": a single boolean has no intermediates to reuse, so
+that idea helps batch paths only and leaves this gap untouched. The
+construction cost here is irreducible: each operand must be built once.
 
 Both sides are genuinely single-threaded here, measured rather than assumed:
 sampling `/proc/<pid>/task` during a subdivision-8 run gives **1 thread** for
@@ -261,6 +267,48 @@ gain is a bad trade. Reverted; nothing committed.
 Process note: run-to-run spread on this box is ~4% ACROSS PROCESSES, while
 `profile_sphere` best-of-N within one process understates it. Any perf claim
 here needs repeated process launches, not repeated iterations.
+
+#### The construction-reuse option, sized and declined
+
+Construction being 22.3% of a single boolean prompted an obvious idea:
+`union_many` rebuilds every intermediate, so reuse it. That was measured
+rather than assumed, by instrumenting `to_manifold` against
+`compute_boolean` on a disjoint sphere grid:
+
+```
+  n   wall_ms  build_ms  build%  triangles rebuilt vs input
+  8       8.9       3.9   43.8%   3.00x
+ 27      51.2      22.2   43.4%   4.85x
+ 64     145.7      65.2   44.7%   6.00x
+125     344.1     147.5   42.9%   6.98x
+```
+
+Construction is ~43% of `union_many` wall time, and the waste grows with n:
+at 125 solids the same triangles are rebuilt seven times, because each tree
+level hands the next a `TriMesh` and the half-edge structure is rebuilt from
+scratch above it.
+
+Upper bound if every triangle were built exactly once, at zero conversion
+cost: **1.41x at n=8, 1.52x at 27, 1.59x at 64, 1.58x at 125.** Real would
+be lower.
+
+**It does not touch the Manifold gap.** The sphere-sphere benchmark is a
+SINGLE boolean: one call, both operands are leaves, rebuild ratio 1.0x. Reuse
+saves exactly zero there. An earlier note in this file suggested amortising
+`Manifold::new` as the lead on the 1.23x -- that was wrong, and this
+paragraph is the correction. The two are separate problems:
+
+| | benefit | applies to |
+|---|---|---|
+| construction reuse | ~1.6x ceiling | `union_many` / batch paths |
+| single-boolean 1.23x gap | unaffected | one `boolean()` call |
+
+Cost of doing it: a new internal type boundary threading the built structure
+between levels, heavier intermediates (the structure carries a collider and
+a planar grid), and it touches the path with recorded ordering
+nondeterminism -- which is currently STABLE at 1000 solids. Declined for now
+on that basis, and recorded on `union_tree` in the kernel so the next reader
+finds the numbers at the code rather than here.
 
 ### Sphere grid to 1000 spheres
 
