@@ -34,7 +34,6 @@
 
 use axiolid_contracts::ExecutionOptions;
 use axiolid_core::{Aabb, BooleanOperator, Frame3, Point3, Scalar, Tolerance, Vec3};
-use axiolid_inspect::genus;
 use axiolid_levelset::level_set;
 use axiolid_measure::volume_properties;
 use axiolid_mesh::{audit_mesh, component_count, TriMesh};
@@ -78,7 +77,10 @@ fn true_genus(mesh: &TriMesh) -> f64 {
 }
 
 /// Run the chain across a resolution ladder.
-pub fn report(reps: usize) {
+/// Returns the number of rows that violated a gated invariant.
+#[must_use]
+pub fn report(reps: usize) -> usize {
+    let mut faults = 0usize;
     let provider = BoolmeshBoolean::new();
     let sectioner = ScalarSection::new();
     let opts = ExecutionOptions::new(Tolerance::METRE);
@@ -157,15 +159,15 @@ pub fn report(reps: usize) {
         // The gates. Each is an invariant that must hold at EVERY
         // resolution, so any failure is a real regression rather than a
         // discretisation artefact.
-        let mut faults: Vec<String> = Vec::new();
+        let mut faults_row: Vec<String> = Vec::new();
         if !closed {
-            faults.push(format!(
+            faults_row.push(format!(
                 "NOT CLOSED (boundary={} nonmanifold={})",
                 health.boundary_edges, health.non_manifold_edges
             ));
         }
         if comps != 1 {
-            faults.push(format!("COMPONENTS want 1 got {comps}"));
+            faults_row.push(format!("COMPONENTS want 1 got {comps}"));
         }
         // Genus is the load-bearing invariant, but only once the mesh can
         // actually represent every handle. The two coarsest rows are
@@ -176,19 +178,22 @@ pub fn report(reps: usize) {
         // invariant rather than a coincidence of one resolution.
         let resolved = edge <= 0.2;
         if resolved && (g - 27.0).abs() > 1e-9 {
-            faults.push(format!("GENUS want 27 got {g}"));
+            faults_row.push(format!("GENUS want 27 got {g}"));
         }
         if contours == 0 {
-            faults.push("NO CONTOURS on z=0".to_string());
+            faults_row.push("NO CONTOURS on z=0".to_string());
         }
         if out_tris == 0 {
-            faults.push("EMPTY INTERSECTION".to_string());
+            faults_row.push("EMPTY INTERSECTION".to_string());
         }
 
-        let verdict = if faults.is_empty() {
+        if !faults_row.is_empty() {
+            faults += 1;
+        }
+        let verdict = if faults_row.is_empty() {
             "ok".to_string()
         } else {
-            format!("!! {}", faults.join("; "))
+            format!("!! {}", faults_row.join("; "))
         };
         println!(
             "  {edge:5}  {:6}  {closed:6}  {comps:5}  {g:5}  {contours:8}  {sect_ms:8.2}  {bool_ms:8.2}  {out_tris:8}  {volume:9.4}  {verdict}",
@@ -196,4 +201,8 @@ pub fn report(reps: usize) {
         );
     }
     println!();
+    if faults > 0 {
+        println!("  {faults} gyroid row(s) violated a gated invariant.");
+    }
+    faults
 }

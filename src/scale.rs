@@ -138,7 +138,13 @@ fn operands() -> (TriMesh, TriMesh) {
 }
 
 /// Run the same boolean across scales and world offsets.
-pub fn report() {
+/// Returns the number of rows where the BOOLEAN lost accuracy.
+///
+/// Input-limited rows are deliberately NOT counted: placement destroyed the
+/// operands before the kernel saw them, which is a property of f64 and the
+/// callers coordinates, not a kernel defect to gate on.
+#[must_use]
+pub fn report() -> usize {
     let provider = BoolmeshBoolean::new();
     let opts = ExecutionOptions::new(Tolerance::METRE);
     let (subject, tool) = operands();
@@ -280,4 +286,5 @@ pub fn report() {
     println!();
     println!("  {refused} refused, {input_limited} input-limited (placement quantised the");
     println!("  operands before the kernel saw them), {wrong} genuine kernel error(s).");
+    wrong
 }

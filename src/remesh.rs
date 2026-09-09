@@ -142,7 +142,9 @@ fn diag_box(c: [Scalar; 3], s: [Scalar; 3], flip: bool) -> TriMesh {
 }
 
 /// Run one boolean per representation and compare against the baseline.
-pub fn report() {
+/// Returns the number of representations that disagreed.
+#[must_use]
+pub fn report() -> usize {
     let provider = BoolmeshBoolean::new();
     let opts = ExecutionOptions::new(Tolerance::MILLIMETRE);
     let mut rng = Rng(0x2545_F491_4F6C_DD1D);
@@ -301,6 +303,7 @@ pub fn report() {
     } else {
         println!("  {faults} representation(s) disagree -- see verdicts above.");
     }
+    faults
 }
 
 /// Does each representation land on the SAME vertex set run to run?
@@ -309,7 +312,9 @@ pub fn report() {
 /// survives vertex reordering. The upstream nondeterminism moves vertex
 /// ORDER and VALUES without moving volume, so it is invisible there.
 /// This checks the stronger property, per representation, over repeats.
-pub fn stability_probe(runs: usize) {
+/// Returns the number of representations that were not reproducible.
+#[must_use]
+pub fn stability_probe(runs: usize) -> usize {
     use std::collections::BTreeSet;
     let provider = BoolmeshBoolean::new();
     let opts = ExecutionOptions::new(Tolerance::MILLIMETRE);
@@ -358,6 +363,7 @@ pub fn stability_probe(runs: usize) {
         "representation", "out tris", "distinct"
     );
 
+    let mut unstable = 0usize;
     for (label, subject) in &variants {
         let mut seen = BTreeSet::new();
         let mut tris = 0usize;
@@ -377,6 +383,9 @@ pub fn stability_probe(runs: usize) {
             }
             seen.insert(key);
         }
+        if seen.len() != 1 {
+            unstable += 1;
+        }
         let verdict = if seen.len() == 1 {
             "STABLE".to_string()
         } else {
@@ -390,6 +399,7 @@ pub fn stability_probe(runs: usize) {
             verdict
         );
     }
+    unstable
 }
 
 /// Normalised triangle quality: `4*sqrt(3)*area / sum of squared edges`.

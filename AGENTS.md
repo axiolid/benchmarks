@@ -493,6 +493,21 @@ needs point-to-triangle distance and is quadratic in triangles. The vertex form
 is enough here because placement moves vertices rather than retriangulating.
 Reported, never gated, for exactly that reason.
 
+
+### These fixtures are gates, not reports
+
+`gyroid::report`, `remesh::report`, `remesh::stability_probe` and
+`scale::report` each RETURN their fault count, and `main` sums them into the
+process exit code. A violated invariant fails the run rather than printing
+`!!` into a log nobody reads.
+
+Verified by mutation: changing the gyroid genus gate to expect 99 produces
+`5 gyroid row(s) violated a gated invariant` / `5 invariant violation(s)` and
+exit 1. On a clean tree these four contribute 0.
+
+Note the harness also exits 1 for the pre-existing ifc-lite volume mismatches
+described at the top of this file; those are a separate, known signal.
+
 ## Determinism probe
 
 `IfcConvert --kernel axiolid` yields different vertex counts across identical

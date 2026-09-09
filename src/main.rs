@@ -1012,16 +1012,25 @@ fn main() {
     // Sphere-grid union. Capped at 125 by default: 512 and 1000 are a
     // different order of runtime and are opt-in via the env var, so a
     // default run stays usable.
-    gyroid::report(reps);
-    remesh::report();
-    scale::report();
-    remesh::stability_probe(20);
+    // These four are GATES, not just reports: their fault counts feed the
+    // exit code below, so a broken invariant fails the run instead of
+    // printing "!!" into a log nobody reads.
+    let mut invariant_faults = 0usize;
+    invariant_faults += gyroid::report(reps);
+    invariant_faults += remesh::report();
+    invariant_faults += scale::report();
+    invariant_faults += remesh::stability_probe(20);
     sphere_grid::report(reps, sphere_grid_max());
     sphere_grid::blame_probe(20);
     sphere_grid::cheese_report(reps, cheese_max());
 
-    if wrong > 0 {
-        println!("\n{wrong} volume mismatch(es) -- timings above are not comparable.");
+    if wrong > 0 || invariant_faults > 0 {
+        if wrong > 0 {
+            println!("\n{wrong} volume mismatch(es) -- timings above are not comparable.");
+        }
+        if invariant_faults > 0 {
+            println!("\n{invariant_faults} invariant violation(s) in the fixture gates.");
+        }
         determinism_probe(20);
         std::process::exit(1);
     }
