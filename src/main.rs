@@ -33,6 +33,7 @@ use ifc_lite_geometry::mesh::Mesh as LiteMesh;
 mod cellular;
 mod drift;
 mod exactness;
+mod gyroid;
 mod menger;
 mod ops;
 mod sliver;
@@ -1009,6 +1010,7 @@ fn main() {
     // Sphere-grid union. Capped at 125 by default: 512 and 1000 are a
     // different order of runtime and are opt-in via the env var, so a
     // default run stays usable.
+    gyroid::report(reps);
     sphere_grid::report(reps, sphere_grid_max());
     sphere_grid::blame_probe(20);
     sphere_grid::cheese_report(reps, cheese_max());

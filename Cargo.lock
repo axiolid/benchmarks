@@ -30,9 +30,14 @@ dependencies = [
  "axiolid-construct",
  "axiolid-contracts",
  "axiolid-core",
+ "axiolid-inspect",
+ "axiolid-levelset",
+ "axiolid-measure",
  "axiolid-mesh",
  "axiolid-mesh-boolean-boolmesh",
  "axiolid-mesh-boolean-contract",
+ "axiolid-mesh-section-contract",
+ "axiolid-reference",
  "boolmesh",
  "cc",
  "ifc-lite-geometry",
@@ -109,6 +114,27 @@ dependencies = [
 [[package]]
 name = "axiolid-guarantees"
 version = "0.14.0"
+
+[[package]]
+name = "axiolid-inspect"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+ "axiolid-guarantees",
+ "axiolid-mesh",
+ "axiolid-predicates",
+ "axiolid-spatial",
+ "thiserror",
+]
+
+[[package]]
+name = "axiolid-levelset"
+version = "0.14.0"
+dependencies = [
+ "axiolid-core",
+ "axiolid-mesh",
+ "thiserror",
+]
 
 [[package]]
 name = "axiolid-linear"

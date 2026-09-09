@@ -158,6 +158,74 @@ Appended after the ladder. Narrows the determinism fault to the smallest
 operand that exhibits it, and **corrected the standing conclusion** — see the
 correction under "Determinism probe" above.
 
+## Gyroid (whole-kernel chain)
+
+A triply-periodic minimal surface -- `sin x cos y + sin y cos z + sin z cos x`
+-- meshed by `level_set`, then audited, sectioned, and cut. The only fixture
+here that is smooth-dominated: Menger and the box tests are planar and
+coplanar-heavy, so this is the opposite workload.
+
+One row exercises: level-set -> audit -> genus -> section -> boolean ->
+measurement, so a regression anywhere in that chain surfaces as one failing
+row instead of a silently different number.
+
+```
+  edge    tris  closed  comps  genus  contours   sect ms   bool ms  out tris     volume
+   0.4    2040  true        1     12         6      0.19      5.17       864     0.9366
+   0.3    4320  true        1     34         6      0.31      9.48      1812     0.9686
+   0.2    8784  true        1     27         4      0.33     15.47      3138     1.0387
+  0.15   16908  true        1     27         4      0.59     24.87      5550     1.0536
+  0.12   24360  true        1     27         5      0.80     34.31      8238     1.0603
+   0.1   33180  true        1     27         4      0.95     47.59     10842     1.0639
+  0.08   51864  true        1     27         4      1.56     70.16     17388     1.0669
+```
+
+### Gated
+
+- **closure + two-manifoldness** -- an open shell makes every later stage
+  meaningless, so it is checked before anything else.
+- **component count = 1** -- also what makes the genus number trustworthy
+  (see below).
+- **genus = 27**, but only for `edge <= 0.2`. It holds across a 6x
+  refinement (8,784 to 51,864 triangles). The two coarsest rows are
+  genuinely under-resolved -- 2,040 triangles cannot carry 27 handles -- so
+  they are reported and excluded rather than silently passed.
+- **section contour count > 0** on z=0.
+- **non-empty boolean result**.
+
+### NOT gated: volume
+
+Deliberate. The gyroid is cut by its bounding box, so the solid depends on
+where grid planes fall relative to the surface, and volume OSCILLATES with
+resolution rather than converging:
+
+```
+  edge   0.40  0.30  0.20  0.15  0.12  0.10
+  vol    6.03  6.21  5.01  5.42  4.86  4.50
+```
+
+That is the FIXTURE, not the mesher. The same extractor on a sphere, which
+no bound cuts, converges monotonically over the same ladder (8.2e-2 to
+5.0e-3 relative error). Measured both ways before deciding. Gating on
+gyroid volume would fail whenever the resolution changed, for no defect.
+
+### Genus is computed here, not taken from the kernel
+
+`axiolid_inspect::genus` assumes ONE component: it applies `chi = 2 - 2g`
+and clamps a negative result to zero (kernel issue #98), so a two-piece
+solid reports genus 0 and is indistinguishable from a sphere. This fixture
+uses the general `g = (2c - chi)/2`, and asserts `comps == 1` separately, so
+the number stays meaningful if a future variant becomes multi-component.
+
+### Mutation-proven
+
+Both gates were shown to fail before being trusted:
+
+- Perturbing the field frequency 15% (a different gyroid, still a valid
+  closed surface): caught on 6 of 7 rows -- genus 27 to 56, components 1 to
+  4. Volume barely moved, confirming it would have been a useless gate.
+- Moving the section plane off the solid: `NO CONTOURS` on every row.
+
 ## Swiss cheese
 
 A cube minus a `k^3` grid of curved cutters, `n` = 1, 8, 27, 64, 125.

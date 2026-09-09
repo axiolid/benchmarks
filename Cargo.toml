@@ -19,6 +19,11 @@ axiolid-mesh-boolean-boolmesh = { path = "../kernel/crates/providers/mesh/boolme
 # #77 exact boolean over planar-faced solids, to measure whether routing
 # through it avoids boolmesh's failure mode on coincident planes.
 axiolid-construct = { path = "../kernel/crates/algorithms/construction/construct" }
+axiolid-levelset = { path = "../kernel/crates/algorithms/sampled/levelset" }
+axiolid-inspect = { path = "../kernel/crates/algorithms/query/inspect" }
+axiolid-measure = { path = "../kernel/crates/algorithms/query/measure" }
+axiolid-reference = { path = "../kernel/crates/algorithms/reference" }
+axiolid-mesh-section-contract = { path = "../kernel/crates/contracts/operations/mesh-section" }
 
 # ifc-lite geometry kernel, driven directly through its public API.
 ifc-lite-geometry = { path = "../../ifclite/rust/geometry" }
