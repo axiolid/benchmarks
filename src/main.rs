@@ -756,7 +756,14 @@ fn main() {
         ),
     ];
 
+    // The wall table is a section too. Without this guard `--only=cheese`
+    // still ran it, which is why a cheese-only run printed lite-kernel
+    // mismatches and exited 1 -- the filter looked like it worked because
+    // the section it failed to skip was ABOVE the one being requested.
     for (workload, generate, ground_truth) in workloads {
+        if !enabled("wall") {
+            break;
+        }
         if !json && workload == "flush" {
             println!("\n-- coincident cut planes (openings flush with the wall's faces) --");
         }

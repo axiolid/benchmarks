@@ -166,9 +166,15 @@ top of their range; these are the actual numbers.
 
 Use `--only=<section>` to run one section: without it the whole suite runs, so
 reaching one heavy tier no longer costs an hour of unrelated work. Sections:
-`exactness`, `drift`, `sliver`, `menger`, `sphere`, `contact`, `gyroid`,
-`remesh`, `scale`, `sphere_grid`, `cheese`. Comma-separated, e.g.
+`wall`, `exactness`, `drift`, `sliver`, `menger`, `sphere`, `contact`,
+`gyroid`, `remesh`, `scale`, `sphere_grid`, `cheese`. Comma-separated, e.g.
 `--only=sphere,cheese`.
+
+`wall` is the opening-count table at the top. It was initially left OUT of the
+filter, so `--only=cheese` still ran it and exited 1 on the known ifc-lite
+mismatches -- the filter appeared to work because the section it failed to
+skip printed ABOVE the requested one. A section-filtered run should exit 0
+when the requested sections pass; if it does not, check what else ran.
 
 ### Sphere-sphere to 1.3M triangles per operand
 
