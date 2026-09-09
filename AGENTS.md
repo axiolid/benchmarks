@@ -158,6 +158,69 @@ Appended after the ladder. Narrows the determinism fault to the smallest
 operand that exhibits it, and **corrected the standing conclusion** — see the
 correction under "Determinism probe" above.
 
+## Contact lattice
+
+Every qualitative relationship two solids can have, with an oracle derived
+from the construction rather than read back from the kernel. `sliver.rs`
+sweeps one relationship (a thinning face overlap); this covers the rest.
+
+22 cases: disjoint, contained, partial overlap, identical, face/edge/vertex
+contact, sphere tangency, an epsilon sweep at 1e-3/1e-6/1e-9/1e-12/1e-15 in
+BOTH directions (gap +eps and overlap -eps), and sphere near-tangency.
+
+### Result
+
+The whole lattice behaves. The three degenerate contacts are the interesting
+rows and all are correct:
+
+```
+  case                        union err    isect err     diff err  comps
+  face contact                   0.00e0       0.00e0       0.00e0      1
+  edge contact                   0.00e0       0.00e0       0.00e0      2
+  vertex contact                 0.00e0       0.00e0       0.00e0      2
+  sphere tangent               4.49e-15       0.00e0     2.14e-16      2
+```
+
+Zero-volume intersection on all three, and `comps` is right: face contact
+fuses into ONE solid, while edge and vertex contact leave TWO. A kernel that
+welded on any shared feature would report 1 everywhere.
+
+### The epsilon sweep degrades gracefully
+
+```
+  overlap -1e-3     isect err 1.8e-14
+  overlap -1e-6     isect err 1.9e-11
+  overlap -1e-9     isect err 1.9e-8
+  overlap -1e-12    isect err 1.7e-13
+  overlap -1e-15    isect err 1.7e-16
+```
+
+Relative error grows as the slab thins, which is expected, and stays far
+inside the 1e-6 gate. Nothing refuses. Both directions were swept because a
+kernel that snaps near-coincident planes must not snap in only one of them.
+
+### The oracle had to be corrected, and it mattered
+
+The first version asserted the intersection equals the REQUESTED eps. It does
+not: placing a corner at `1.0 - eps` rounds in f64, and at 1e-12 the stored
+slab is 9.99978e-13, differing in the 5th significant digit. That produced a
+spurious `!! ISECT 8.3e-1` that looked like a serious kernel bug.
+
+The oracle now derives the slab from the stored coordinate (`1.0 - lo`), so
+the fixture is not charging the kernel for its own placement rounding. Worth
+recording: the failure looked entirely plausible, and reporting it would have
+been wrong.
+
+### Mutation-proven
+
+Falsifying the vertex-contact oracle (claiming it fuses with 0.5 shared
+volume) yields `!! UNION 3.3e-1; ISECT 1.0e0` and exit 1.
+
+Note: the first mutation attempt silently failed to apply because `cargo fmt`
+had reflowed the struct literal the edit matched on, and the run reported a
+PASS. Always confirm a mutation actually landed (`grep MUTANT`) before
+trusting a mutation test.
+
 ## Gyroid (whole-kernel chain)
 
 A triply-periodic minimal surface -- `sin x cos y + sin y cos z + sin z cos x`

@@ -31,6 +31,7 @@ use ifc_lite_geometry::mesh::Mesh as LiteMesh;
 /// Opt-in analytic fast path (see `cellular.rs`). Never auto-dispatched: the
 /// caller chooses fast-vs-exact explicitly, so a run's topology is predictable.
 mod cellular;
+mod contact;
 mod drift;
 mod exactness;
 mod gyroid;
@@ -1016,6 +1017,7 @@ fn main() {
     // exit code below, so a broken invariant fails the run instead of
     // printing "!!" into a log nobody reads.
     let mut invariant_faults = 0usize;
+    invariant_faults += contact::report();
     invariant_faults += gyroid::report(reps);
     invariant_faults += remesh::report();
     invariant_faults += scale::report();
