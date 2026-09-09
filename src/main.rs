@@ -38,6 +38,7 @@ mod gyroid;
 mod menger;
 mod ops;
 mod remesh;
+mod rotate;
 mod scale;
 mod sliver;
 mod sphere;
@@ -1055,6 +1056,9 @@ fn main() {
     }
     if enabled("scale") {
         invariant_faults += scale::report();
+    }
+    if enabled("rotate") {
+        invariant_faults += rotate::report();
     }
     if enabled("sphere_grid") {
         sphere_grid::report(reps, sphere_grid_max());

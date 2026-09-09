@@ -846,6 +846,56 @@ volume about the centroid rather than the origin, which is translation-
 invariant and removes the cancellation.
 
 
+## Rotation invariance
+
+`rotate.rs`. A rigid motion cannot change a solid, so rotating both operands,
+running the boolean, and mapping the result back through the inverse rotation
+must reproduce the unrotated answer.
+
+Angles: 0, 30, 45, 89.999999, 90, 90.000001 degrees about z, plus four fixed
+arbitrary 3D axes (body diagonal at 30 and 45, and two skew axes). The
+89.999999 / 90 / 90.000001 trio is the point of the sweep: exactly 90 is
+representable and restores axis alignment, a hair either side does not, so a
+kernel that special-cases axis-aligned input would show a discontinuity.
+
+Measured invariants: volume, area, Euler characteristic, component count,
+vertex spread, and max vertex drift from the unrotated result.
+
+```
+  case                 vol err    area err     chi   comps       drift  verdict
+  z            0        0.00e0      0.00e0       2       1      0.00e0  ok
+  z           30        0.00e0      0.00e0       2       1    2.22e-16  ok
+  z           45        0.00e0      0.00e0       2       1    1.57e-16  ok
+  z    89.999999      1.69e-16      0.00e0       2       1    2.22e-16  ok
+  z           90        0.00e0      0.00e0       2       1    1.11e-16  ok
+  z    90.000001      1.69e-16      0.00e0       2       1    2.48e-16  ok
+  diag 30             3.38e-16      0.00e0       2       1    2.48e-16  ok
+  diag 45               0.00e0      0.00e0       2       1    1.57e-16  ok
+  tilt 60               0.00e0    1.48e-16       2       1    4.00e-16  ok
+  skew 120            1.69e-16      0.00e0       2       1    2.42e-16  ok
+```
+
+Every case holds to machine epsilon, and there is NO discontinuity across the
+90-degree trio.
+
+### The trap this fixture nearly fell into
+
+The first version compared volume, area, chi, components and spread. It
+reported "invariant" on all ten cases -- and it also reported "invariant"
+when `unrotate` was mutated into a no-op, which means the round trip was
+never actually being verified.
+
+Every one of those metrics is rotation-invariant BY CONSTRUCTION. Comparing
+them after a round trip cannot distinguish "correctly un-rotated" from "never
+un-rotated". The fixture needed one metric that is NOT rotation-invariant:
+`max_vertex_drift`, comparing actual positions against the unrotated
+reference. With it, the same mutation is caught on 9 of 10 cases (0 degrees
+correctly still passes -- there is no rotation to invert) and the run exits 1.
+
+Generalisation worth keeping: **an invariance fixture must include at least
+one quantity that the transform does not preserve**, or it only proves the
+transform is a transform.
+
 ## Determinism probe
 
 `IfcConvert --kernel axiolid` yields different vertex counts across identical
