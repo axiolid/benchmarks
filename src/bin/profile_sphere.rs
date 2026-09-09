@@ -100,6 +100,10 @@ fn main() {
         Some("intersection") => BooleanOperator::Intersection,
         _ => BooleanOperator::Difference,
     };
+    // 5th arg: "fast" selects boolean_fast (opt-in winding-number path,
+    // see kernel03::winding03_fast). Any other value or omission keeps
+    // the default boolean() path this tool always used.
+    let fast = args.get(4).map(String::as_str) == Some("fast");
 
     let radius = 1.0;
     let a = icosphere([0.0, 0.0, 0.0], radius, subdivisions);
@@ -118,7 +122,11 @@ fn main() {
     let mut times: Vec<f64> = Vec::with_capacity(iterations as usize);
     for i in 0..iterations {
         let start = std::time::Instant::now();
-        let outcome = provider.boolean(&a, &b, op, &options);
+        let outcome = if fast {
+            provider.boolean_fast(&a, &b, op, &options)
+        } else {
+            provider.boolean(&a, &b, op, &options)
+        };
         let elapsed = start.elapsed().as_secs_f64() * 1000.0;
         match outcome {
             Ok(r) => {
