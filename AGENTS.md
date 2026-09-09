@@ -212,6 +212,56 @@ triangles. CGAL is 5.6x axiolid at the top tier.
 Identity error (inclusion-exclusion on the tessellated operands) stays at
 2.5e-14 at subdivision 8, so the extra triangles do not accumulate error.
 
+### Profiling the Manifold gap (no fix shipped)
+
+`perf record -g --call-graph=dwarf` on subdivision 7 union, bench profile
+(`release` sets `strip = true`, which silently produces a symbol-free
+profile -- use `--profile bench`).
+
+Flat profile, grouped by phase:
+
+```
+mesh CONSTRUCTION (Manifold/Hmesh/collider::new)  22.3%
+boolean ALGORITHM (kernels/tri/simplification)    18.1%
+runtime/libc/sort/memmove/page-faults             51.8%
+```
+
+**Building the half-edge structure costs more than the boolean itself.**
+There is no hotspot: the largest single entry is `Manifold::new` at 7.95%,
+and it is a constructor. Micro-optimisation cannot close a 23% gap against
+a profile shaped like this; the lead is avoiding or amortising
+`Manifold::new` across `union_many` nodes, which is a design change.
+
+Both sides are genuinely single-threaded here, measured rather than assumed:
+sampling `/proc/<pid>/task` during a subdivision-8 run gives **1 thread** for
+the axiolid-only binary AND for the whole cross-kernel suite. boolmesh has a
+`parallel` feature but it is OFF by default. So the 1.23x is a real
+single-threaded difference, not a parallelism artefact.
+
+#### One candidate tested and rejected
+
+`__ieee754_acos_fma` at 2.14% is angle-weighted vertex normals in
+`Hmesh::new`. Those normals are consumed only by
+`shadows(p, q, dir) -> if p == q { dir < 0. } else { p < q }` -- the SIGN of
+one component, nothing else. Positive angle weights cannot change that sign,
+so uniform weights should be equivalent for the boolean.
+
+Removing the `acos` passed all 9 boolmesh test suites. It was still reverted:
+
+```
+baseline, 4 separate processes: 780.4 814.5 796.4 787.0  (spread 34.1 ms)
+probe,    3 separate processes: 766.0 781.0 785.0
+apparent effect 14.4 ms; baseline noise 34.1 ms -> noise is 2.4x the effect
+```
+
+**The effect is below this harness noise floor and must not be quoted as a
+1.8% win.** Deleting a correctness-relevant weighting for an unresolvable
+gain is a bad trade. Reverted; nothing committed.
+
+Process note: run-to-run spread on this box is ~4% ACROSS PROCESSES, while
+`profile_sphere` best-of-N within one process understates it. Any perf claim
+here needs repeated process launches, not repeated iterations.
+
 ### Sphere grid to 1000 spheres
 
 `AXIOLID_SPHERE_GRID_MAX=1000 cargo run --release -- --only=sphere_grid 1`
