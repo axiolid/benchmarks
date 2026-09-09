@@ -158,6 +158,91 @@ Appended after the ladder. Narrows the determinism fault to the smallest
 operand that exhibits it, and **corrected the standing conclusion** — see the
 correction under "Determinism probe" above.
 
+## Swiss cheese
+
+A cube minus a `k^3` grid of curved cutters, `n` = 1, 8, 27, 64, 125.
+`AXIOLID_CHEESE_MAX` caps it (default 125). Two variants, because they test
+different topology and only one has a cheap exact oracle:
+
+| | cavity | bore |
+|---|---|---|
+| cutters | strictly inside the host | pierce both faces |
+| components | `n + 1` | 1 |
+| genus | 0 | `n` |
+| volume oracle | exact (host - sum of cutters) | none; reported only |
+| determinism | STABLE | **NONDETERMINISTIC** |
+
+Cutter shapes: `sphere` (icosphere), `cyl` (capped z-cylinder), `alt`
+(alternating by cell parity). Bores are cylinders by definition, so the
+sphere and alternating variants are skipped there rather than faked.
+
+Measured (best of 3, `subops=1` throughout — the disjoint-fusion path):
+
+| n | sphere | cyl | alt | out tris (sphere) |
+|---|---|---|---|---|
+| 1 | 0.3 ms | 0.2 ms | 0.4 ms | 332 |
+| 8 | 2.4 ms | 1.0 ms | 1.9 ms | 2572 |
+| 27 | 9.5 ms | 3.1 ms | 5.9 ms | 8652 |
+| 64 | 22.6 ms | 7.7 ms | 15.5 ms | 20492 |
+| 125 | 46.8 ms | 15.9 ms | 29.7 ms | 40012 |
+
+Volume error holds at 1e-13..1e-15 across every cavity row.
+
+### ⚠️ The oracle is TESSELLATED, never analytic
+
+An icosphere INSCRIBES its sphere, so it is strictly smaller. Measured
+against `4/3 pi r^3` at r=1:
+
+| subdivisions | triangles | relative error |
+|---|---|---|
+| 1 | 80 | 1.3e-1 |
+| 2 | 320 | 3.4e-2 |
+| 3 | 1280 | 8.6e-3 |
+| 4 | 5120 | 2.2e-3 |
+
+Gating on the analytic value would charge the kernel with the FIXTURE's
+discretisation error — a 3.4% 'failure' that is really the benchmark being
+wrong. Summing the tessellated cutter volumes instead lands at ~1e-14,
+which is the kernel's actual accuracy.
+
+### ⚠️ Interior cavities are genus 0, not high genus
+
+A natural assumption is that drilling holes in a cube raises its genus. It
+does not, if the holes do not break the surface:
+
+```
+cube minus 8 INTERIOR spheres    chi=18   comps=9   genus=0
+cube minus 9 THROUGH cylinders   chi=-16  comps=1   genus=9
+```
+
+A cavity adds a SHELL (one more component, genus unchanged); only a cutter
+that pierces the boundary adds a HANDLE. That is why both variants exist —
+`cavity` exercises high component count with an exact oracle, `bore`
+exercises high genus without one. Neither substitutes for the other.
+
+Both gates are mutation-proven: shortening a bore so it stops short of the
+far face (`reach = extent/2 - 0.3`) makes it a cavity, and every bore row
+fails with both `!! COMPONENTS want 1` and `!! GENUS want n`.
+
+### Determinism: the intersection-curve theory, independently confirmed
+
+Cavity rows are STABLE; bore rows are NONDETERMINISTIC (3 distinct in 3
+runs). Same batch path, same cutter shape, same fusion — the only
+difference is whether the cutter's surface crosses the host's. This is an
+independent confirmation of the finding under "Determinism probe": the
+trigger is a non-empty intersection curve, not a multi-component operand.
+Note the direction — the MULTI-component result (cavity, `n+1` components)
+is the stable one, and the SINGLE-component result (bore) is not.
+
+### Found while building this
+
+`axiolid_inspect::genus` silently returns `Ok(0)` for any multi-component
+mesh: it assumes `chi = 2 - 2g` (one component) and clamps the resulting
+negative genus through `u32::try_from(...).unwrap_or(0)`. Two disjoint
+cubes report `Ok(0)`, indistinguishable from a sphere. Filed as
+axiolid/kernel#98. This harness computes its own `euler_genus` with the
+general `g = (2c - chi)/2`, which is why the cavity rows can report
+genus 0 against 126 components honestly.
 ## Determinism probe
 
 `IfcConvert --kernel axiolid` yields different vertex counts across identical

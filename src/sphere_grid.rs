@@ -459,3 +459,324 @@ pub fn report(reps: usize, max_spheres: usize) {
         }
     }
 }
+
+/// Which cutter shape a cheese grid uses.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CutterKind {
+    Sphere,
+    Cylinder,
+    Alternating,
+}
+
+impl CutterKind {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Sphere => "sphere",
+            Self::Cylinder => "cyl",
+            Self::Alternating => "alt",
+        }
+    }
+}
+
+/// An axis-aligned box as a TriMesh, given centre and full extents.
+pub fn axis_box(c: [f64; 3], size: [f64; 3]) -> TriMesh {
+    let h = [size[0] / 2.0, size[1] / 2.0, size[2] / 2.0];
+    let mut p = Vec::with_capacity(8);
+    for &sz in &[-1.0f64, 1.0] {
+        for &sy in &[-1.0f64, 1.0] {
+            for &sx in &[-1.0f64, 1.0] {
+                p.push(axiolid_core::Point3::new(
+                    c[0] + sx * h[0],
+                    c[1] + sy * h[1],
+                    c[2] + sz * h[2],
+                ));
+            }
+        }
+    }
+    // Outward-oriented, verified by the positive signed volume assert below.
+    let idx: Vec<u32> = vec![
+        0, 2, 1, 1, 2, 3, // -z
+        4, 5, 6, 5, 7, 6, // +z
+        0, 1, 4, 1, 5, 4, // -y
+        2, 6, 3, 3, 6, 7, // +y
+        0, 4, 2, 2, 4, 6, // -x
+        1, 3, 5, 3, 7, 5, // +x
+    ];
+    let m = TriMesh::new(p, idx);
+    debug_assert!(mesh_volume(&m) > 0.0, "box must be outward oriented");
+    m
+}
+
+/// A closed z-axis cylinder with flat caps.
+pub fn z_cylinder(centre_xy: [f64; 2], radius: f64, z0: f64, z1: f64, segments: usize) -> TriMesh {
+    let mut p = Vec::with_capacity(segments * 2 + 2);
+    for &z in &[z0, z1] {
+        for i in 0..segments {
+            let a = std::f64::consts::TAU * i as f64 / segments as f64;
+            p.push(axiolid_core::Point3::new(
+                centre_xy[0] + radius * a.cos(),
+                centre_xy[1] + radius * a.sin(),
+                z,
+            ));
+        }
+    }
+    let bot = p.len() as u32;
+    p.push(axiolid_core::Point3::new(centre_xy[0], centre_xy[1], z0));
+    let top = p.len() as u32;
+    p.push(axiolid_core::Point3::new(centre_xy[0], centre_xy[1], z1));
+
+    let s = segments as u32;
+    let mut idx: Vec<u32> = Vec::with_capacity(segments * 12);
+    for i in 0..s {
+        let j = (i + 1) % s;
+        // Side wall, outward.
+        idx.extend_from_slice(&[i, j, s + i, j, s + j, s + i]);
+        // Bottom cap (z0), normal -z.
+        idx.extend_from_slice(&[bot, j, i]);
+        // Top cap (z1), normal +z.
+        idx.extend_from_slice(&[top, s + i, s + j]);
+    }
+    let m = TriMesh::new(p, idx);
+    debug_assert!(mesh_volume(&m) > 0.0, "cylinder must be outward oriented");
+    m
+}
+
+/// Euler characteristic V - E + F over a closed triangle mesh, and the
+/// genus implied by it.
+///
+/// For a closed orientable surface with `c` connected components,
+/// `chi = 2c - 2g`, so `g = (2c - chi) / 2`. Edges are counted as unique
+/// undirected vertex pairs, which is only correct when the mesh is
+/// welded -- a mesh with duplicated vertices reports inflated V and E and
+/// a meaningless genus, so the caller must check `chi` is even.
+///
+/// Positions are welded by exact bit pattern first: the boolean emits
+/// vertices that are geometrically shared but may be listed separately,
+/// and an unwelded count would make every hole look like a component.
+pub fn euler_genus(m: &TriMesh) -> (i64, i64, i64, i64, Option<i64>) {
+    use std::collections::HashMap;
+    let mut weld: HashMap<[u64; 3], u32> = HashMap::new();
+    let mut remap: Vec<u32> = Vec::with_capacity(m.positions.len());
+    for p in &m.positions {
+        let key = [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
+        let next = weld.len() as u32;
+        remap.push(*weld.entry(key).or_insert(next));
+    }
+    let v = weld.len() as i64;
+    let f = (m.indices.len() / 3) as i64;
+    let mut edges: BTreeSet<(u32, u32)> = BTreeSet::new();
+    for t in m.indices.chunks_exact(3) {
+        let (a0, b0, c0) = (
+            remap[t[0] as usize],
+            remap[t[1] as usize],
+            remap[t[2] as usize],
+        );
+        for (x, y) in [(a0, b0), (b0, c0), (c0, a0)] {
+            edges.insert(if x < y { (x, y) } else { (y, x) });
+        }
+    }
+    let e = edges.len() as i64;
+    let chi = v - e + f;
+    let c = component_count(m) as i64;
+    // g = (2c - chi)/2, only meaningful when that is an integer.
+    let g = if (2 * c - chi) % 2 == 0 {
+        Some((2 * c - chi) / 2)
+    } else {
+        None
+    };
+    (v, e, f, chi, g)
+}
+
+/// Swiss-cheese: a cube with a k^3 grid of cutters removed.
+///
+/// Two variants, because they test DIFFERENT topology and only one of
+/// them has a cheap exact oracle:
+///
+/// - `Cavity`: cutters sit strictly inside the host. The result has
+///   `n + 1` components (outer shell plus one void shell each) and
+///   GENUS 0. Volume is exactly host minus the sum of cutter volumes,
+///   because a disjoint interior cutter removes precisely itself.
+/// - `Bore`: cutters pierce the host from face to face. The result is
+///   ONE component of GENUS n. No cheap volume oracle -- each cutter is
+///   clipped by the boundary -- so volume is reported, not gated.
+///
+/// The oracle is the TESSELLATED cutter volume, never `4/3 pi r^3`. An
+/// icosphere inscribes its sphere and is measurably smaller (12.7% at
+/// one subdivision, 0.22% at four); gating on the analytic value would
+/// charge the kernel for the fixture's own discretisation error.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Cheese {
+    Cavity,
+    Bore,
+}
+
+impl Cheese {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Cavity => "cavity",
+            Self::Bore => "bore",
+        }
+    }
+}
+
+/// Build a swiss-cheese host and its cutters.
+pub fn cheese(k: usize, kind: CutterKind, style: Cheese) -> (TriMesh, Vec<TriMesh>) {
+    let cell = 2.0;
+    let radius = 0.5;
+    let extent = cell * k as f64;
+    let host = axis_box([0.0, 0.0, 0.0], [extent, extent, extent]);
+    let base = -extent / 2.0 + cell / 2.0;
+    // A bore must exit both faces cleanly. Overshooting the half-extent
+    // guarantees the cap planes never land ON the host boundary, which
+    // would be a coplanar-face case rather than a clean pierce.
+    let reach = extent / 2.0 + 1.0;
+    let mut cutters = Vec::with_capacity(k * k * k);
+    for i in 0..k {
+        for j in 0..k {
+            for l in 0..k {
+                let c = [
+                    base + i as f64 * cell,
+                    base + j as f64 * cell,
+                    base + l as f64 * cell,
+                ];
+                let use_cyl = match kind {
+                    CutterKind::Sphere => false,
+                    CutterKind::Cylinder => true,
+                    CutterKind::Alternating => (i + j + l) % 2 == 1,
+                };
+                match style {
+                    Cheese::Cavity => cutters.push(if use_cyl {
+                        z_cylinder([c[0], c[1]], radius, c[2] - radius, c[2] + radius, 32)
+                    } else {
+                        icosphere(c, radius, 2)
+                    }),
+                    Cheese::Bore => {
+                        // Only one bore per (x, y) column, or the cutters
+                        // would be collinear duplicates of each other.
+                        if l == 0 {
+                            cutters.push(z_cylinder([c[0], c[1]], radius, -reach, reach, 32));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    (host, cutters)
+}
+
+/// Run the swiss-cheese ladder.
+pub fn cheese_report(reps: usize, max_cavities: usize) {
+    println!("\n\nSwiss cheese -- cube minus a k^3 grid of curved cutters");
+    println!("{}", "-".repeat(112));
+    println!("cavity: cutters strictly inside -- n+1 components, genus 0, exact volume oracle.");
+    println!("bore:   cutters pierce both faces -- 1 component, genus n, volume reported only.");
+    println!("Oracle is the TESSELLATED cutter volume; an icosphere inscribes its sphere.");
+    println!();
+    println!(
+        "{:>7}{:>8}{:>7}{:>10}{:>7}{:>7}{:>11}{:>10}{:>9}  {}",
+        "style",
+        "cutter",
+        "n",
+        "batch ms",
+        "comps",
+        "genus",
+        "out tris",
+        "vol err",
+        "subops",
+        "determinism"
+    );
+
+    let provider = BoolmeshBoolean::default();
+    let options = ExecutionOptions::new(Tolerance::METRE);
+
+    for style in [Cheese::Cavity, Cheese::Bore] {
+        for kind in [
+            CutterKind::Sphere,
+            CutterKind::Cylinder,
+            CutterKind::Alternating,
+        ] {
+            // A bore grid is k^2 columns, so sphere/alternating variants
+            // are meaningless there -- a bore is a cylinder by definition.
+            if style == Cheese::Bore && kind != CutterKind::Cylinder {
+                continue;
+            }
+            for k in [1usize, 2, 3, 4, 5] {
+                let (host, cutters) = cheese(k, kind, style);
+                let n = cutters.len();
+                if n > max_cavities {
+                    continue;
+                }
+
+                let want = (style == Cheese::Cavity)
+                    .then(|| mesh_volume(&host) - cutters.iter().map(mesh_volume).sum::<f64>());
+
+                let start = std::time::Instant::now();
+                let outcome = provider.subtract_many(&host, &cutters, &options);
+                let ms = start.elapsed().as_secs_f64() * 1e3;
+
+                let Ok(out) = outcome else {
+                    println!(
+                        "{:>7}{:>8}{n:>7}{:>10}{:>7}{:>7}{:>11}{:>10}{:>9}  {}",
+                        style.label(),
+                        kind.label(),
+                        "-",
+                        "-",
+                        "-",
+                        "-",
+                        "-",
+                        "-",
+                        "REFUSED",
+                    );
+                    continue;
+                };
+
+                let comps = component_count(&out.mesh);
+                let (_, _, _, chi, g) = euler_genus(&out.mesh);
+                let genus = g.map_or_else(|| "n/a".to_owned(), |g| g.to_string());
+                let vol_err = want
+                    .map(|w| ((mesh_volume(&out.mesh) - w) / w).abs())
+                    .map_or_else(|| "-".to_owned(), |e| format!("{e:.1e}"));
+
+                let mut seen: BTreeSet<(usize, usize, u64)> = BTreeSet::new();
+                seen.insert(fingerprint(&out.mesh));
+                for _ in 1..reps {
+                    if let Ok(o) = provider.subtract_many(&host, &cutters, &options) {
+                        seen.insert(fingerprint(&o.mesh));
+                    }
+                }
+                let verdict = match seen.len() {
+                    1 => "STABLE".to_owned(),
+                    d => format!("!! NONDETERMINISTIC ({d} distinct)"),
+                };
+
+                // Topology gate: a cavity grid must return exactly n+1
+                // components and genus 0; a bore grid exactly 1 and
+                // genus n. Getting the volume right while getting the
+                // topology wrong is the failure this fixture exists for.
+                let want_comps = match style {
+                    Cheese::Cavity => n + 1,
+                    Cheese::Bore => 1,
+                };
+                let want_genus = match style {
+                    Cheese::Cavity => 0i64,
+                    Cheese::Bore => n as i64,
+                };
+                let mut note = String::new();
+                if comps != want_comps {
+                    note.push_str(&format!("  !! COMPONENTS want {want_comps}"));
+                }
+                if g != Some(want_genus) {
+                    note.push_str(&format!("  !! GENUS want {want_genus} (chi={chi})"));
+                }
+
+                println!(
+                    "{:>7}{:>8}{n:>7}{ms:>10.1}{comps:>7}{genus:>7}{:>11}{vol_err:>10}{:>9}  {verdict}{note}",
+                    style.label(),
+                    kind.label(),
+                    out.mesh.indices.len() / 3,
+                    out.evidence.sub_operations,
+                );
+            }
+        }
+    }
+}

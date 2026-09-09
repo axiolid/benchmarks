@@ -500,6 +500,13 @@ fn menger_depth() -> u32 {
 /// Default 125 keeps a plain `cargo run` bounded. The 512 and 1000 cases
 /// are the interesting ones for scaling but cost minutes, so they are
 /// requested explicitly: `AXIOLID_SPHERE_GRID_MAX=1000`.
+fn cheese_max() -> usize {
+    std::env::var("AXIOLID_CHEESE_MAX")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(125)
+}
+
 fn sphere_grid_max() -> usize {
     std::env::var("AXIOLID_SPHERE_GRID_MAX")
         .ok()
@@ -1004,6 +1011,7 @@ fn main() {
     // default run stays usable.
     sphere_grid::report(reps, sphere_grid_max());
     sphere_grid::blame_probe(20);
+    sphere_grid::cheese_report(reps, cheese_max());
 
     if wrong > 0 {
         println!("\n{wrong} volume mismatch(es) -- timings above are not comparable.");
