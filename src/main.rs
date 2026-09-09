@@ -37,6 +37,7 @@ mod menger;
 mod ops;
 mod sliver;
 mod sphere;
+mod sphere_grid;
 
 // C++ kernels behind a C ABI (`cpp/shim.cpp`). Each takes the same host box
 // and flat 8-corner (24 doubles) cutter array every Rust column gets, and returns the
@@ -492,6 +493,18 @@ fn menger_depth() -> u32 {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(3)
+}
+
+/// Largest sphere count the grid ladder will run.
+///
+/// Default 125 keeps a plain `cargo run` bounded. The 512 and 1000 cases
+/// are the interesting ones for scaling but cost minutes, so they are
+/// requested explicitly: `AXIOLID_SPHERE_GRID_MAX=1000`.
+fn sphere_grid_max() -> usize {
+    std::env::var("AXIOLID_SPHERE_GRID_MAX")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(125)
 }
 
 fn best_of<T, F: FnMut() -> T>(reps: usize, mut f: F) -> (f64, T) {
@@ -986,6 +999,11 @@ fn main() {
     menger::exact_report(menger_depth().min(3));
     // Start at subdivision 4 (5120 tris); heavier levels are opt-in.
     sphere::report(reps, sphere_max_sub());
+    // Sphere-grid union. Capped at 125 by default: 512 and 1000 are a
+    // different order of runtime and are opt-in via the env var, so a
+    // default run stays usable.
+    sphere_grid::report(reps, sphere_grid_max());
+    sphere_grid::blame_probe(20);
 
     if wrong > 0 {
         println!("\n{wrong} volume mismatch(es) -- timings above are not comparable.");

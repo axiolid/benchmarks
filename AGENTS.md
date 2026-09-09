@@ -102,6 +102,62 @@ which is the whole point: the win is algorithmic, not micro-optimisation.
   `supports_boolean_operations = false`. Its old "fastest kernel" IfcConvert
   numbers were booleans being skipped, never a like-for-like comparison.
 
+## Sphere-grid union
+
+`k^3` grids of icospheres unioned into one solid, in two arrangements: spaced
+3.0r apart (disjoint, no contact) and 1.5r apart (overlapping, neighbours fuse).
+Run with `cargo run --release -- 3`; `AXIOLID_SPHERE_GRID_MAX=1000` opts into
+the 512 and 1000 cases, default cap is 125.
+
+Each case is run under two reduction strategies, which is the point of the
+table — the *order* of the reduction dominates, not the per-boolean cost:
+
+| spheres | seq | tree | speedup |
+|---|---|---|---|
+| 8 | 9.4 ms | 6.9 ms | 1.4x |
+| 27 | 103.2 ms | 40.6 ms | 2.5x |
+| 64 | 596.6 ms | 113.9 ms | 5.2x |
+| 125 | 2249.5 ms | 287.3 ms | 7.8x |
+| 512 | 44358.5 ms | 1536.0 ms | **28.9x** |
+
+Sequential fold (`((a∪b)∪c)∪d`) makes step *i* pay for an accumulator holding
+*i* spheres — quadratic total work. Balanced pairwise reduction makes the same
+number of boolean calls on operands that stay small until the last levels. The
+gap widens with n (1.4x → 28.9x), so it is a complexity difference, not a
+constant factor.
+
+Same answer either way: at every size both strategies return identical triangle
+counts and component counts, with volume error ~1e-14 against the oracle. Only
+the reduction order differs.
+
+**This is a provider-level opportunity.** `subtract_many` already owns grouping
+for differences; unions currently leave reduction order to the caller, and the
+default a caller reaches for is the fold. 44 seconds versus 1.5 seconds for the
+same 512-sphere answer is the cost of that omission.
+
+Columns:
+
+- `comp` — `component_count` of the result. Disjoint grids must return exactly
+  the input sphere count; a mismatch prints `!! COMPONENTS want N`. Overlapping
+  grids collapse to 1.
+- `vol err` — disjoint only, against `concat` (no boolean at all: an
+  independent oracle, not the same path asked twice). Holds at ~1e-15.
+  Overlapping has no cheap closed form, so it prints `-` rather than a guess.
+- `peak MB` — absolute `VmHWM` after a `/proc/self/clear_refs` reset.
+  ⚠️ Read it as a ceiling, not per-case growth. Up to 125 spheres it reads a
+  flat ~68 MB: the allocator arena, already grown by earlier sections of the
+  harness, absorbs these unions entirely. It only starts tracking once a case
+  genuinely exceeds that arena (512 spheres: 180.2 MB seq vs 166.4 MB tree).
+  A delta-over-baseline column was tried first and printed 0.0 everywhere for
+  the same reason. Real per-case numbers need one process per case.
+- `determinism` — fingerprint over positions AND indices across `reps` runs.
+
+## Sphere-grid blame probe
+
+Appended after the ladder. Narrows the determinism fault to the smallest
+operand that exhibits it, and **corrected the standing conclusion** — see the
+correction under "Determinism probe" above.
+
 ## Determinism probe
 
 `IfcConvert --kernel axiolid` yields different vertex counts across identical
@@ -111,17 +167,44 @@ every run) reproduces this **without IfcOpenShell**, then isolates the layer:
 ```
 n=64
 axiolid subtract_many (grouped)  verts=520  tris=1292  !! NONDETERMINISTIC (20 distinct, ordering/value)
-axiolid single boolean           verts=16   tris=32    STABLE
+axiolid single boolean           verts=16   tris=32    !! NONDETERMINISTIC (2 distinct, ordering/value)
 raw boolmesh (sequential)        verts=520  tris=1292  STABLE
 raw boolmesh (FUSED tool)        verts=520  tris=1292  !! NONDETERMINISTIC  <-- upstream
 cellular (analytic, opt-in)      verts=1040 tris=2332  STABLE
 ```
 
-**The fault is upstream in `boolmesh`, not axiolid's grouping.** It appears only
-when the tool operand is *multi-component* (disconnected) — exactly what
-`subtract_many`'s disjoint-cutter fusion builds. `boolmesh` uses randomly-seeded
-`std::collections::HashMap` in `boolean45/` and its vertex dedup. Counts stay
-fixed, so only ordering/values drift.
+**The fault is upstream in `boolmesh`, not axiolid's grouping.** `boolmesh` uses
+randomly-seeded `std::collections::HashMap` in `boolean45/` and its vertex dedup.
+Counts stay fixed, so only ordering/values drift.
+
+**Correction (sphere-grid work):** the multi-component operand is NOT the
+trigger. That was the narrowest case this box-based probe could reach, so the
+correlation looked causal. The sphere-grid blame probe reaches a smaller one:
+
+```
+single boolean, 2 overlapping spheres   verts=314  tris=624  !! NONDETERMINISTIC (7 distinct, ordering/value)
+single boolean, 2 disjoint spheres      verts=324  tris=640  STABLE
+8-sphere grid, disjoint, tree           verts=1296 tris=2560 STABLE
+8-sphere grid, overlap, tree            verts=1176 tris=2368 !! NONDETERMINISTIC (20 distinct)
+```
+
+One boolean, two single-component operands, no fusion and no grouping, still
+drifts. So a multi-component operand is **not required**. What the drifting
+cases share is a **non-empty intersection curve**: operands that genuinely cut
+each other drift, operands that merely coexist do not. Fusing disjoint cutters
+was implicated only because that box fixture's fused tool was also the one that
+actually intersected the subject.
+
+The `axiolid single boolean` row above is also **stale**: it now reads
+`!! NONDETERMINISTIC (2 distinct)`, not STABLE. Its cutter is a through-hole
+(the opening spans y −0.15..0.35 through a wall of y 0.0..0.2), so it does have
+an intersection curve, and it drifts — rarely, but it drifts.
+
+Not yet explained: `raw boolmesh (sequential)` stays STABLE while performing
+intersecting booleans. It differs from the axiolid path by conversion and
+vertex dedup, so the trigger may be narrower than "any intersection curve".
+Treat "intersection curve required" as established and "intersection curve
+sufficient" as open.
 
 ⚠️ **Methodology warning — this conclusion inverted once.** The first probe
 fingerprinted raw results over positions only, while the axiolid fingerprint
@@ -129,6 +212,12 @@ covered positions *and* indices. That made both raw paths look STABLE and
 wrongly indicted axiolid's grouping. Permuted triangle order with fixed vertices
 is invisible to a position-only hash. **When comparing implementations, the
 fingerprints must cover identical data or the comparison is meaningless.**
+
+⚠️ **And it narrowed once more.** The multi-component attribution above was
+sound for the evidence available but wrong in general. A probe can only blame
+layers it can separate: if every drifting case in your fixture shares two
+properties, you cannot tell which one is the cause. Adding a fixture that
+separates them (overlapping vs disjoint spheres) is what settled it.
 
 ## Findings
 
