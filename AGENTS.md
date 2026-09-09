@@ -321,14 +321,56 @@ Perturbations: flipped quad diagonals, shuffled triangle order, randomly
 reindexed vertices, 1x and 2x midpoint subdivision (which also duplicates
 seam vertices per-triangle), and the three composed.
 
+### Coverage
+
+Eleven representations: baseline, flipped quad diagonals, shuffled triangles,
+reindexed vertices, uniform subdivision (1x and 2x), a combined
+subdivide+shuffle+reindex, two SKINNY triangulations (edges cut at t=0.02 and
+t=0.002 instead of the midpoint), UNEVEN refinement dense only near the cut,
+and uneven+skinny combined.
+
+Two reported shape metrics make "skinny" and "uneven" measured rather than
+asserted: `min qual` is normalised triangle quality (1.0 equilateral, 0
+degenerate) and `spread` is largest triangle area over smallest.
+
+| representation | tris | min qual | spread |
+|---|---|---|---|
+| baseline | 12 | 0.866 | 1.0 |
+| skinny (t=0.02) | 48 | 0.018 | 2401 |
+| skinny (t=0.002) | 48 | 0.002 | 249001 |
+| uneven: dense near cut | 368 | 0.495 | 4.0 |
+| uneven + skinny | 1472 | 0.009 | 9604 |
+
 ### Result: invariant
 
-All seven agree. Volume error against the baseline is at most 1.4e-15
+All eleven agree. Volume error against the baseline is at most 1.4e-15
 relative, component count is identical, and output triangle count is
 identical within each refinement level.
 
 So the P0 worry does NOT reproduce for boolean difference: the provider does
 not depend on vertex order, triangle order, or diagonal choice.
+
+### Two fixture bugs this extension exposed
+
+Both were caught by the kernel refusing the input, not by a wrong number --
+worth recording because both would have looked like kernel findings.
+
+1. **Unwelded splits.** The split helpers emit six vertices per triangle, so
+   a shared edge got one copy per side and EVERY edge was a boundary edge.
+   The kernel refused it: `NotManifold("Input mesh must not contain boundary
+   edges")`. `subdivide` had this latent from the start and passed only
+   because nothing checked closure. Fixed with an exact bitwise `weld`; a
+   tolerance-based weld was rejected as it could merge genuinely distinct
+   points and change the surface.
+
+2. **Inconsistent cut orientation.** The first `skinny_subdivide` cut edge
+   `(i,j)` at `lerp(p,q,t)` from one side and `lerp(q,p,1-t)` from the other,
+   intending them to cancel. They do not: on edge (0,0,0)-(2,0,0) at t=0.02
+   that is 0.04 versus 1.96. Both sides must interpolate FROM the
+   lower-indexed endpoint by the SAME t.
+
+Neither is visible from volume alone, which is why the closure self-check
+(`audit_mesh` on the perturbed INPUT) was added alongside the volume one.
 
 ### The self-check is load-bearing
 
@@ -339,11 +381,24 @@ one vertex of the flipped box reports PERTURBATION CHANGED INPUT rather than
 blaming the boolean, and inverting the reindex map is refused by the kernel
 as a zero-volume solid.
 
+
+Two further mutations target the new perturbations specifically:
+
+- **naive uneven refinement** (split only the selected triangles, skipping
+  red-green) reintroduces T-junctions -> kernel refuses with `NotManifold`.
+- **inconsistent skinny cut** (`1.0 - t` on one side) tears the surface ->
+  same refusal.
+
+Both fail loudly rather than returning a plausible wrong number, which is why
+red-green refinement and the canonical cut direction are not optional detail.
+
 ### Stability probe, and what it corrects
 
 Volume is permutation-invariant, so the table above CANNOT see the upstream
 ordering drift. `stability_probe` fingerprints positions AND indices over 20
-identical runs per representation. All five are STABLE, 1 distinct result.
+identical runs per representation. All SEVEN are STABLE, 1 distinct result --
+including the t=0.002 skinny mesh and the uneven one, which are the most
+likely to expose an ordering dependency if one existed.
 
 That MATTERS for an earlier claim in this file: the sphere-grid section says
 a non-empty intersection curve is what triggers the drift. These booleans all
