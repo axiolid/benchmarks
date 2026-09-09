@@ -311,6 +311,54 @@ cubes report `Ok(0)`, indistinguishable from a sphere. Filed as
 axiolid/kernel#98. This harness computes its own `euler_genus` with the
 general `g = (2c - chi)/2`, which is why the cavity rows can report
 genus 0 against 126 components honestly.
+## Remesh invariance
+
+Does the boolean depend on how the input was triangulated rather than on its
+geometry? Seven representations of the SAME box, one difference against the
+same icosphere tool.
+
+Perturbations: flipped quad diagonals, shuffled triangle order, randomly
+reindexed vertices, 1x and 2x midpoint subdivision (which also duplicates
+seam vertices per-triangle), and the three composed.
+
+### Result: invariant
+
+All seven agree. Volume error against the baseline is at most 1.4e-15
+relative, component count is identical, and output triangle count is
+identical within each refinement level.
+
+So the P0 worry does NOT reproduce for boolean difference: the provider does
+not depend on vertex order, triangle order, or diagonal choice.
+
+### The self-check is load-bearing
+
+Each row reports `in vol err` BEFORE the boolean runs: the perturbed input
+must enclose the same volume as the baseline. Without it, a buggy
+perturbation would look like a kernel defect. Proven by mutation -- nudging
+one vertex of the flipped box reports PERTURBATION CHANGED INPUT rather than
+blaming the boolean, and inverting the reindex map is refused by the kernel
+as a zero-volume solid.
+
+### Stability probe, and what it corrects
+
+Volume is permutation-invariant, so the table above CANNOT see the upstream
+ordering drift. `stability_probe` fingerprints positions AND indices over 20
+identical runs per representation. All five are STABLE, 1 distinct result.
+
+That MATTERS for an earlier claim in this file: the sphere-grid section says
+a non-empty intersection curve is what triggers the drift. These booleans all
+have one, and none of them drift.
+
+So an intersection curve is NECESSARY but NOT SUFFICIENT, and the open
+question is narrowed: what the drifting cases add is curved-vs-curved
+operands (icosphere against icosphere), not merely intersecting ones. A box
+against an icosphere is stable. Not yet closed.
+
+### Running it
+
+Included in the default run. `remesh::report()` for the table,
+`remesh::stability_probe(20)` for the fingerprints.
+
 ## Determinism probe
 
 `IfcConvert --kernel axiolid` yields different vertex counts across identical
@@ -343,8 +391,10 @@ single boolean, 2 disjoint spheres      verts=324  tris=640  STABLE
 
 One boolean, two single-component operands, no fusion and no grouping, still
 drifts. So a multi-component operand is **not required**. What the drifting
-cases share is a **non-empty intersection curve**: operands that genuinely cut
-each other drift, operands that merely coexist do not. Fusing disjoint cutters
+cases share is a **non-empty intersection curve** -- necessary, but NOT
+sufficient: see "Remesh invariance", where five representations of a box cut by
+an icosphere all have an intersection curve and all stay STABLE over 20 runs.
+The drifting cases additionally have CURVED-VS-CURVED operands. Fusing disjoint cutters
 was implicated only because that box fixture's fused tool was also the one that
 actually intersected the subject.
 
@@ -357,7 +407,9 @@ Not yet explained: `raw boolmesh (sequential)` stays STABLE while performing
 intersecting booleans. It differs from the axiolid path by conversion and
 vertex dedup, so the trigger may be narrower than "any intersection curve".
 Treat "intersection curve required" as established and "intersection curve
-sufficient" as open.
+sufficient" as REFUTED -- the remesh stability probe closes that half: a box
+against an icosphere has an intersection curve and does not drift. The
+narrowed hypothesis is curved-vs-curved operands.
 
 ⚠️ **Methodology warning — this conclusion inverted once.** The first probe
 fingerprinted raw results over positions only, while the axiolid fingerprint
