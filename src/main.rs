@@ -37,6 +37,7 @@ mod gyroid;
 mod menger;
 mod ops;
 mod remesh;
+mod scale;
 mod sliver;
 mod sphere;
 mod sphere_grid;
@@ -1013,6 +1014,7 @@ fn main() {
     // default run stays usable.
     gyroid::report(reps);
     remesh::report();
+    scale::report();
     remesh::stability_probe(20);
     sphere_grid::report(reps, sphere_grid_max());
     sphere_grid::blame_probe(20);

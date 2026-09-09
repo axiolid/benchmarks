@@ -414,6 +414,85 @@ against an icosphere is stable. Not yet closed.
 Included in the default run. `remesh::report()` for the table,
 `remesh::stability_probe(20)` for the fingerprints.
 
+## Scale + translation invariance
+
+The kernel corpus checks that `bounds()` survives a nine-order scale gap on ONE
+static mesh (`scale_disparity`). This runs the SAME boolean at 7 scales x 5
+world offsets and maps every result back by `(p - offset) / scale`, which is
+the property a BIM caller actually depends on: a millimetre feature on a
+building placed at a survey coordinate must behave like that feature at the
+origin.
+
+Reported per row: f64 spacing at the operand, input round-trip error, volume
+error, vertex Hausdorff, component count, runtime, verdict.
+
+### The headline number
+
+`14 refused, 2 input-limited, 0 genuine kernel errors.`
+
+The boolean is scale- and translation-invariant wherever the input survives
+placement at all. It never silently returned a wrong answer that could be
+blamed on the kernel.
+
+### Attribution is the whole design
+
+Two rows DO come back materially different — `1e-9 @ 1e6` (3.9e-2) and
+`1e0 @ 1e12` (2.6e-7). Neither is a kernel defect.
+
+Each row round-trips the OPERANDS with no boolean involved first. Placement
+snaps every coordinate to the f64 grid at `offset`, so at large offsets the
+kernel is handed a different solid than the caller described:
+
+```
+row            input err   output err
+1e-9 @ 1e6      3.9e-2      3.1e-2
+1e0  @ 1e12     7.1e-6      2.6e-7
+```
+
+Output error is SMALLER than input error in both cases — the boolean is more
+accurate than the geometry it was given. A gate that skipped this check would
+report two kernel bugs that do not exist.
+
+### Why f64 predicts the cliff
+
+Spacing at coordinate `x` is about `x * 2^-52`:
+
+```
+coordinate   spacing    steps across a 2e-9 feature
+1e6          2.2e-10    9
+1e12         2.2e-4     ~0
+```
+
+Nine representable steps across the whole feature is not enough to carry the
+geometry, so `1e-9 @ 1e6` is quantised into a different shape before any
+algorithm runs. A refusal there would be preferable to a confident answer, but
+the answer it gives is faithful to the damaged input it received.
+
+### Refusals are correct, and non-monotonic
+
+14 of 33 rows refuse, in four distinct classes: `invalid geometry input`,
+`numerically degenerate input`, and `backend boolmesh violated its contract`.
+The last is the most interesting — a contract violation caught by the wrapper
+rather than a clean refusal from the backend.
+
+The refusal boundary is NOT monotonic: `1e-3 @ 1e3` succeeds while
+`1e-6 @ 1e3` refuses, and `1e9 @ 1e12` succeeds while `1e6 @ 1e12` refuses.
+Feature size relative to coordinate magnitude drives it, not either alone.
+
+### Mutation-proven
+
+Injecting a scale-dependent output drift (`x *= 1 + 1e-7` when `scale > 1`)
+fails every affected row with the correct attribution:
+`!! VOLUME 1.0e-7 vs input 1.5e-16; BOUNDS 2.0e-7`. The gate separates a real
+kernel error from input quantisation rather than lumping them together.
+
+### Hausdorff is vertex-set, not surface
+
+`vertex_hausdorff` compares vertex SETS, not surfaces. A surface Hausdorff
+needs point-to-triangle distance and is quadratic in triangles. The vertex form
+is enough here because placement moves vertices rather than retriangulating.
+Reported, never gated, for exactly that reason.
+
 ## Determinism probe
 
 `IfcConvert --kernel axiolid` yields different vertex counts across identical
