@@ -740,7 +740,8 @@ the answer it gives is faithful to the damaged input it received.
 14 of 33 rows refuse, in four distinct classes: `invalid geometry input`,
 `numerically degenerate input`, and `backend boolmesh violated its contract`.
 The last is the most interesting — a contract violation caught by the wrapper
-rather than a clean refusal from the backend.
+rather than a clean refusal from the backend. It is diagnosed below under
+"Why two scale-sweep rows report a contract vi...[truncated]
 
 The refusal boundary is NOT monotonic: `1e-3 @ 1e3` succeeds while
 `1e-6 @ 1e3` refuses, and `1e9 @ 1e12` succeeds while `1e6 @ 1e12` refuses.
@@ -774,6 +775,48 @@ exit 1. On a clean tree these four contribute 0.
 
 Note the harness also exits 1 for the pre-existing ifc-lite volume mismatches
 described at the top of this file; those are a separate, known signal.
+
+#### Why two scale-sweep rows report a contract violation
+
+Two rows refuse with `backend boolmesh violated its contract` rather
+than a plain refusal: scale 1e-6 at offset 1e9, and scale 1e-3 at
+offset 1e6. Both are the extreme-quantisation regime -- about nine
+representable f64 steps across the whole feature.
+
+Reproduced directly: the placed SUBJECT is rejected before any
+boolean runs, with
+
+    subject: mesh is inside-out (signed volume -85333333333.33 < 0)
+
+The box is not collapsed -- its extent survives placement (9.5e-7 at
+scale 1e-6). The sign is wrong because the signed volume is summed as
+triple products of ABSOLUTE coordinates, about the origin. At offset
+1e9 each term is ~1e27 while the true 6V is ~6e-18:
+
+    ratio term/true = 1.7e44  ->  needs ~44 significant digits
+    f64 provides    = 16
+
+The true volume is far below the rounding error of the sum, so the
+sign is noise. Refusing is CORRECT -- nothing downstream could trust
+a solid whose orientation cannot be determined.
+
+Two honest caveats:
+
+- The DIAGNOSIS is misleading. `mesh is inside-out` names a modelling
+  error the caller could fix by reversing winding; the real cause is
+  that the coordinates cannot represent the solid. A caller acting on
+  the message as written would flip the winding and get nowhere.
+- Which message you see depends on tolerance. At `Tolerance::METRE`
+  (what the sweep uses) input validation passes and the failure
+  surfaces later as `BackendContractViolation`; at `MILLIMETRE` it is
+  caught up front as `invalid geometry input`. Same root cause, two
+  different error classes -- so the error kind here is a function of
+  tolerance, not of the defect.
+
+Filed as axiolid/kernel#99. The suggested fix is to compute the signed
+volume about the centroid rather than the origin, which is translation-
+invariant and removes the cancellation.
+
 
 ## Determinism probe
 
