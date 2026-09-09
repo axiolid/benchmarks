@@ -158,6 +158,106 @@ Appended after the ladder. Narrows the determinism fault to the smallest
 operand that exhibits it, and **corrected the standing conclusion** — see the
 correction under "Determinism probe" above.
 
+## Heavy tiers (measured, not extrapolated)
+
+The default run caps the sphere ladder at subdivision 6 and the sphere grid at
+125 spheres, because the heavy tiers cost minutes each. Both were run to the
+top of their range; these are the actual numbers.
+
+Use `--only=<section>` to run one section: without it the whole suite runs, so
+reaching one heavy tier no longer costs an hour of unrelated work. Sections:
+`exactness`, `drift`, `sliver`, `menger`, `sphere`, `contact`, `gyroid`,
+`remesh`, `scale`, `sphere_grid`, `cheese`. Comma-separated, e.g.
+`--only=sphere,cheese`.
+
+### Sphere-sphere to 1.3M triangles per operand
+
+`AXIOLID_SPHERE_SUB=8 cargo run --release -- --only=sphere 1`
+
+```
+   sub      tris      kernel    union ms    isect ms      A-B ms
+     6     81920     axiolid       207.1       134.1       159.8
+     6     81920    manifold       164.8       110.9       138.3
+     7    327680     axiolid       874.8       571.2       703.8
+     7    327680    manifold       745.9       474.7       628.9
+     8   1310720     axiolid      4246.6      2800.1      3499.1
+     8   1310720    manifold      3453.6      2258.3      2867.9
+     8   1310720        cgal     23860.4      5651.5     13403.9
+```
+
+This is the sphere-minus-sphere comparison the Manifold-Rust port uses, at the
+same input sizes.
+
+**Axiolid is 1.23x Manifold at the top tier, and the ratio is FLAT** -- 1.26x,
+1.17x, 1.23x at subdivisions 6, 7, 8. A constant factor, not a scaling defect.
+
+Log-log slope of axiolid union time against triangle count:
+
+```
+  sub 4->5   1.04
+  sub 5->6   1.13
+  sub 6->7   1.04
+  sub 7->8   1.14
+```
+
+Essentially linear across a 256x range of input size. Nothing blows up at 2M
+triangles. CGAL is 5.6x axiolid at the top tier.
+
+Identity error (inclusion-exclusion on the tessellated operands) stays at
+2.5e-14 at subdivision 8, so the extra triangles do not accumulate error.
+
+### Sphere grid to 1000 spheres
+
+`AXIOLID_SPHERE_GRID_MAX=1000 cargo run --release -- --only=sphere_grid 1`
+
+```
+arrange   spheres  strat  comp   union ms  out tris  peak MB vol err   determinism
+disjoint       125    seq   125     2453.8     40000     51.2 6.7e-15  STABLE
+disjoint       125   tree   125      271.8     40000     48.0 9.3e-15  STABLE
+disjoint       512    seq   512    46260.7    163840    173.0 3.4e-14  STABLE
+disjoint       512   tree   512     1558.9    163840    160.5 1.8e-14  STABLE
+disjoint      1000    seq  1000   186175.6    320000    319.3 6.3e-14  STABLE
+disjoint      1000   tree  1000     3484.8    320000    300.3 6.6e-14  STABLE
+overlap       1000    seq     1   159048.1    276800    295.8       -  STABLE
+overlap       1000   tree     1     2023.6    142336    149.8       -  STABLE
+```
+
+**The tree reduction is an ASYMPTOTIC win, not a constant factor.** Log-log
+slope against sphere count:
+
+```
+       8->27   27->64   64->125   125->512   512->1000
+  seq   1.93     2.04      2.15       2.08        2.08
+  tree  1.39     1.36      1.20       1.24        1.20
+```
+
+Sequential is quadratic; tree is near-linear. The speedup therefore keeps
+widening with n rather than settling:
+
+```
+  n        8    27    64   125    512   1000
+  x      1.4x  2.7x  4.8x  9.0x  29.7x  53.4x
+```
+
+At 1000 spheres that is 3.5 seconds versus 3.1 minutes. This is what the
+`union_many` tree-reduction work bought, measured at the top of the range
+rather than extrapolated from 125.
+
+Peak RSS grows sub-linearly (319 MB for 1000 spheres, 51 MB for 125) and the
+tree path uses slightly LESS memory than sequential despite being 53x faster.
+
+Every row at every size is STABLE: the boolmesh nondeterminism recorded
+elsewhere in this file does not reappear at scale on this path.
+
+### Swiss cheese at 125 cavities
+
+`AXIOLID_CHEESE_MAX=125 cargo run --release -- --only=cheese 1`
+
+All 15 cavity rows hold their analytic oracle to 1.4e-13 or better, with
+`comps = n+1` and `genus 0` exactly as constructed, across sphere, cylinder
+and alternating cutters. Bore rows give `genus n` with one component. All
+STABLE.
+
 ## Contact lattice
 
 Every qualitative relationship two solids can have, with an oracle derived

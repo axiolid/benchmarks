@@ -694,6 +694,16 @@ fn main() {
     // table and the JSON come from the SAME measurement run, so the UI can
     // never drift from the numbers printed here.
     let json = args.iter().any(|a| a == "--json");
+    // `--only=name[,name]` runs a subset. The heavy tiers (sphere sub 7-8,
+    // 512/1000-sphere grids) cost tens of minutes each, so running the whole
+    // suite to reach one of them wastes hours. Without the flag everything
+    // runs, so the default behaviour is unchanged.
+    let only: Vec<String> = args
+        .iter()
+        .find_map(|a| a.strip_prefix("--only="))
+        .map(|v| v.split(',').map(|s| s.trim().to_string()).collect())
+        .unwrap_or_default();
+    let enabled = |name: &str| only.is_empty() || only.iter().any(|o| o == name);
     let reps: usize = args.iter().find_map(|a| a.parse().ok()).unwrap_or(5);
     let mut rows: Vec<String> = Vec::new();
 
@@ -1000,16 +1010,25 @@ fn main() {
         return;
     }
 
-    exactness::report(false);
-    drift::drift_report();
-    sliver::report();
-    menger::report(reps, menger_depth());
-    menger::composed_report(reps, menger_depth());
-    menger::cellular_report(reps, menger_depth());
-    // Capped at 3: depth 4 is 58947 sequential exact booleans.
-    menger::exact_report(menger_depth().min(3));
-    // Start at subdivision 4 (5120 tris); heavier levels are opt-in.
-    sphere::report(reps, sphere_max_sub());
+    if enabled("exactness") {
+        exactness::report(false);
+    }
+    if enabled("drift") {
+        drift::drift_report();
+    }
+    if enabled("sliver") {
+        sliver::report();
+    }
+    if enabled("menger") {
+        menger::report(reps, menger_depth());
+        menger::composed_report(reps, menger_depth());
+        menger::cellular_report(reps, menger_depth());
+        // Capped at 3: depth 4 is 58947 sequential exact booleans.
+        menger::exact_report(menger_depth().min(3));
+    }
+    if enabled("sphere") {
+        sphere::report(reps, sphere_max_sub());
+    }
     // Sphere-grid union. Capped at 125 by default: 512 and 1000 are a
     // different order of runtime and are opt-in via the env var, so a
     // default run stays usable.
@@ -1017,14 +1036,26 @@ fn main() {
     // exit code below, so a broken invariant fails the run instead of
     // printing "!!" into a log nobody reads.
     let mut invariant_faults = 0usize;
-    invariant_faults += contact::report();
-    invariant_faults += gyroid::report(reps);
-    invariant_faults += remesh::report();
-    invariant_faults += scale::report();
-    invariant_faults += remesh::stability_probe(20);
-    sphere_grid::report(reps, sphere_grid_max());
-    sphere_grid::blame_probe(20);
-    sphere_grid::cheese_report(reps, cheese_max());
+    if enabled("contact") {
+        invariant_faults += contact::report();
+    }
+    if enabled("gyroid") {
+        invariant_faults += gyroid::report(reps);
+    }
+    if enabled("remesh") {
+        invariant_faults += remesh::report();
+        invariant_faults += remesh::stability_probe(20);
+    }
+    if enabled("scale") {
+        invariant_faults += scale::report();
+    }
+    if enabled("sphere_grid") {
+        sphere_grid::report(reps, sphere_grid_max());
+        sphere_grid::blame_probe(20);
+    }
+    if enabled("cheese") {
+        sphere_grid::cheese_report(reps, cheese_max());
+    }
 
     if wrong > 0 || invariant_faults > 0 {
         if wrong > 0 {
