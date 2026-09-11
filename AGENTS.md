@@ -1052,6 +1052,56 @@ Synthetic cases stay the CI gate. The corpus measures reach, not
 correctness: it has no ground truth, so it can only assert that a
 defect class provokes the right BEHAVIOUR.
 
+## Behavioural corpus harness
+
+`src/corpus.rs` runs the packed corpus sample through a self-union and
+asks only whether the kernel BEHAVED. The corpus has no ground truth, so
+it cannot check answers; it checks that every model produces a result or
+a typed refusal, and never a crash or a silent wrong-shaped success.
+
+A refusal is a PASS for damaged input. The contract allows the provider
+to decline; it does not allow it to panic or to return an empty mesh
+with no error.
+
+Measured on 240 models, 40 per class:
+
+```
+  class               models  produced  refused  panics  faults
+  clean                   40        40        0       0       0
+  multi_component         40        28        4       8       8 !!
+  non_manifold            40         0        4      17      36 !!
+  non_oriented            40        12       10      18      18 !!
+  open                    40         0       29      10      11 !!
+  self_intersecting       40        21        6      13      13 !!
+```
+
+Clean input is handled correctly across the board. Damaged input is not:
+66 of 240 models (27.5 percent) panic inside the provider instead of
+refusing, which is issue #101. Panics are caught with `catch_unwind` so
+one bad model cannot end the run, and the default panic hook is silenced
+for the duration so the table stays readable.
+
+`open` is the class that behaves best -- 29 of 40 refuse -- which shows
+typed refusal already works where the provider implements it. The gap is
+that it is not implemented for the rest.
+
+Two harness bugs were found and fixed while building it, both cases of
+the harness being wrong rather than the corpus:
+
+- `degenerate_triangles` was counted as damage. It is an area threshold,
+  a tolerance judgement, not a structural defect.
+- A single sliver triangle is excluded from `usable_triangles`, which
+  orphans its three edges and reports them as boundary. Model 37743 has
+  1 degenerate triangle and exactly 3 boundary edges, while an
+  independent edge-multiplicity count over all triangles finds zero. The
+  clean-class assertion now allows boundary edges attributable to
+  dropped slivers and flags anything beyond that.
+
+Run with `--only=corpus`. The section skips cleanly when the packed
+cache is absent, so a clone without the corpus still builds and runs.
+Set `AXIOLID_CORPUS_TRACE=1` to print each model id before it is
+exercised, which is how a panicking model is identified.
+
 ## Nightly corpus fetcher
 
 `scripts/fetch-corpus.py` downloads Thingi10K into a cache OUTSIDE

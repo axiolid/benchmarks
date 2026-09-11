@@ -32,6 +32,7 @@ use ifc_lite_geometry::mesh::Mesh as LiteMesh;
 /// caller chooses fast-vs-exact explicitly, so a run's topology is predictable.
 mod cellular;
 mod contact;
+mod corpus;
 mod drift;
 mod exactness;
 mod grid_stress;
@@ -1063,6 +1064,9 @@ fn main() {
     }
     if enabled("grid") {
         invariant_faults += grid_stress::report();
+    }
+    if enabled("corpus") {
+        invariant_faults += corpus::report();
     }
     if enabled("drift") {
         invariant_faults += drift::topology_report();
