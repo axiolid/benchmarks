@@ -1052,6 +1052,52 @@ Synthetic cases stay the CI gate. The corpus measures reach, not
 correctness: it has no ground truth, so it can only assert that a
 defect class provokes the right BEHAVIOUR.
 
+## Nightly corpus fetcher
+
+`scripts/fetch-corpus.py` downloads Thingi10K into a cache OUTSIDE
+the repository and writes a manifest partitioning it by defect
+class. Nothing it downloads is ever committed.
+
+Run it with the venv on PYTHONPATH:
+
+```sh
+SP=/mnt/archive/corpus/.venv/lib/python3.13/site-packages
+PYTHONPATH="$SP" python3 scripts/fetch-corpus.py \
+    --out /mnt/archive/corpus/manifest.json
+```
+
+Measured on the real dataset (9,995 entries):
+
+```
+licence-admitted models: 3142
+refused by licence:      6853
+
+  clean                1597
+  multi_component       780
+  non_manifold          655
+  non_oriented          320
+  open                  370
+  self_intersecting    1444
+```
+
+Classes overlap by design: a mesh can be both non-manifold and
+self-intersecting, and each class names a BEHAVIOUR to assert.
+
+Only 31 percent of the dataset is admitted. The kernel is MPL-2.0,
+so the script refuses non-commercial (contradicts the MPL grant),
+no-derivatives (forbids the repair the corpus exists to exercise),
+share-alike and GPL (clash with MPL file-copyleft), and unknown
+licence (absent terms mean all rights reserved, not permission).
+
+Two guards are enforced in code, not convention:
+
+- the cache path must be absolute and OUTSIDE the repo, or the script
+  exits before downloading anything;
+- the manifest records ids, licences and counts only -- never geometry.
+
+The corpus is NOT a CI gate. It has no ground truth, so it can only
+assert behaviour. The synthetic suite stays the gate.
+
 ## Topological drift
 
 The volume drift table asks whether the ANSWER stays right as cuts are
