@@ -16,45 +16,12 @@ pub enum Op {
 /// for ANY operands. Measuring the residual turns "is this kernel exact?" into
 /// a number rather than an opinion, and it needs no ground truth: the identity
 /// is its own oracle, so it works on inputs whose true volume nobody knows.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Identity {
     pub name: &'static str,
     pub law: &'static str,
-}
-
-pub const IDENTITIES: [Identity; 4] = [
-    Identity {
-        name: "partition",
-        law: "vol(A-B) + vol(A^B) = vol(A)",
-    },
-    Identity {
-        name: "inclusion-exclusion",
-        law: "vol(AuB) + vol(A^B) = vol(A) + vol(B)",
-    },
-    Identity {
-        name: "idempotence",
-        law: "vol(AuA) = vol(A)",
-    },
-    Identity {
-        name: "commutativity",
-        law: "vol(AuB) = vol(BuA)",
-    },
-];
-
-/// Which operand pair an identity wants evaluated.
-///
-/// Explicit rather than a bare `swap: bool`: idempotence needs `A op A`, which
-/// no combination of "swapped or not" over `(A, B)` can express. Encoding that
-/// as a swap silently measured `B u A` instead and produced a plausible-looking
-/// 1.5e-1 residual that was pure harness error, not a kernel defect.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Pair {
-    /// subject = A, tool = B
-    Ab,
-    /// subject = B, tool = A
-    Ba,
-    /// subject = A, tool = A
-    Aa,
+    /// What the kernel must satisfy, as an expression tree.
+    pub claim: Claim,
 }
 
 /// What a kernel reports about one boolean result.
@@ -192,53 +159,218 @@ fn compare(left: &Metrics, right: &Metrics, scale: f64) -> Verdict {
     Verdict { scores }
 }
 
-/// Score one identity, given a kernel evaluator that reports full metrics.
+/// A boolean expression over the three operands.
 ///
-/// Returns `None` when the kernel could not produce every operand the
-/// identity needs, which the caller must render as an absence: a kernel
-/// that refuses everything would otherwise look flawless.
+/// `Pair` named two operands, so it could not express a law whose
+/// operand is itself a result -- associativity needs `(AuB) u C`.
+/// Encoding that as another enum variant would need one variant per
+/// shape; a tree needs none.
+#[derive(Clone, PartialEq, Eq)]
+pub enum Expr {
+    /// The first operand.
+    A,
+    /// The second operand.
+    B,
+    /// The third operand, used only by the associativity laws.
+    C,
+    /// One boolean applied to two sub-expressions.
+    Apply(Op, Box<Expr>, Box<Expr>),
+}
+
+impl Expr {
+    /// `a op b`, boxed.
+    fn of(op: Op, a: Expr, b: Expr) -> Expr {
+        Expr::Apply(op, Box::new(a), Box::new(b))
+    }
+}
+
+/// Shorthand builders keep the identity table readable.
+fn u(a: Expr, b: Expr) -> Expr {
+    Expr::of(Op::Union, a, b)
+}
+fn i(a: Expr, b: Expr) -> Expr {
+    Expr::of(Op::Intersection, a, b)
+}
+fn d(a: Expr, b: Expr) -> Expr {
+    Expr::of(Op::Difference, a, b)
+}
+
+/// What the two sides of an identity must satisfy.
+#[derive(Clone, PartialEq, Eq)]
+pub enum Claim {
+    /// Both sides denote the same solid: compare every shared metric.
+    Same(Expr, Expr),
+    /// The expression must be empty. Scored as volume against zero:
+    /// an empty result has no bounds, genus or component count to
+    /// compare, and a kernel legitimately returns no triangles.
+    Empty(Expr),
+    /// Summed volumes on the left must equal summed volumes on the
+    /// right. Volume only -- area and the topological counts are not
+    /// additive across a cut, so scoring them here would penalise a
+    /// correct kernel.
+    Sum(Vec<Expr>, Vec<Expr>),
+}
+
+/// The identity table: name, readable law, and the claim to score.
 ///
-/// Additive laws are scored on volume alone because area and the
-/// topological counts are not additive across a cut. Equivalence laws
-/// are scored on every metric both sides report.
-pub fn score<F>(identity: &Identity, a: &Metrics, b: &Metrics, mut op: F) -> Option<Verdict>
-where
-    F: FnMut(Op, Pair) -> Option<Metrics>,
-{
-    let scale = (a.volume.abs() + b.volume.abs()).max(1e-12);
-    match identity.name {
-        "partition" => {
-            let d = op(Op::Difference, Pair::Ab)?;
-            let i = op(Op::Intersection, Pair::Ab)?;
+/// Built at runtime rather than as a const because `Expr` owns boxed
+/// sub-expressions.
+pub fn identities() -> Vec<Identity> {
+    use Expr::{A, B, C};
+    vec![
+        Identity {
+            name: "partition",
+            law: "vol(A-B) + vol(A^B) = vol(A)",
+            claim: Claim::Sum(vec![d(A, B), i(A, B)], vec![A]),
+        },
+        Identity {
+            name: "inclusion-exclusion",
+            law: "vol(AuB) + vol(A^B) = vol(A) + vol(B)",
+            claim: Claim::Sum(vec![u(A, B), i(A, B)], vec![A, B]),
+        },
+        Identity {
+            name: "idempotence-u",
+            law: "A u A = A",
+            claim: Claim::Same(u(A, A), A),
+        },
+        Identity {
+            name: "idempotence-i",
+            law: "A ^ A = A",
+            claim: Claim::Same(i(A, A), A),
+        },
+        Identity {
+            name: "commutativity-u",
+            law: "A u B = B u A",
+            claim: Claim::Same(u(A, B), u(B, A)),
+        },
+        Identity {
+            name: "commutativity-i",
+            law: "A ^ B = B ^ A",
+            claim: Claim::Same(i(A, B), i(B, A)),
+        },
+        Identity {
+            name: "self-difference",
+            law: "A - A = 0",
+            claim: Claim::Empty(d(A, A)),
+        },
+        Identity {
+            name: "difference-disjoint",
+            law: "(A-B) ^ B = 0",
+            claim: Claim::Empty(i(d(A, B), B)),
+        },
+        Identity {
+            name: "reconstruction",
+            law: "(A-B) u (A^B) = A",
+            claim: Claim::Same(u(d(A, B), i(A, B)), A),
+        },
+        Identity {
+            name: "associativity-u",
+            law: "(AuB)uC = Au(BuC)",
+            claim: Claim::Same(u(u(A, B), C), u(A, u(B, C))),
+        },
+        Identity {
+            name: "associativity-i",
+            law: "(A^B)^C = A^(B^C)",
+            claim: Claim::Same(i(i(A, B), C), i(A, i(B, C))),
+        },
+        Identity {
+            name: "absorption-u",
+            law: "A u (A^B) = A",
+            claim: Claim::Same(u(A, i(A, B)), A),
+        },
+        Identity {
+            name: "absorption-i",
+            law: "A ^ (AuB) = A",
+            claim: Claim::Same(i(A, u(A, B)), A),
+        },
+    ]
+}
+
+/// A kernel that can evaluate an expression tree.
+///
+/// `Solid` is the kernel-native representation, so an intermediate
+/// result feeds the next operation directly. Returning `Metrics` from
+/// `apply` instead would be wrong: a measurement cannot be an operand,
+/// and round-tripping through one would discard the geometry that the
+/// next step needs.
+pub trait Kernel {
+    /// The kernel native solid type.
+    type Solid;
+
+    /// One of the three input operands, by index.
+    fn operand(&mut self, index: usize) -> Option<Self::Solid>;
+
+    /// Apply one boolean. `None` means refused or unsupported.
+    fn apply(&mut self, op: Op, a: &Self::Solid, b: &Self::Solid) -> Option<Self::Solid>;
+
+    /// Measure a solid. Fields the kernel cannot supply stay `None`.
+    fn measure(&mut self, solid: &Self::Solid) -> Metrics;
+}
+
+/// Evaluate an expression tree, returning the kernel native solid.
+///
+/// `None` propagates: a partially-evaluated identity must not be
+/// scored, or a kernel that refuses one step would look perfect.
+fn eval<K: Kernel>(expr: &Expr, k: &mut K) -> Option<K::Solid> {
+    match expr {
+        Expr::A => k.operand(0),
+        Expr::B => k.operand(1),
+        Expr::C => k.operand(2),
+        Expr::Apply(op, l, r) => {
+            let lv = eval(l, k)?;
+            let rv = eval(r, k)?;
+            k.apply(*op, &lv, &rv)
+        }
+    }
+}
+
+/// Score one identity against a kernel.
+///
+/// Returns `None` when the kernel could not evaluate every side, which
+/// the caller must render as an absence rather than a passing zero.
+pub fn score<K: Kernel>(identity: &Identity, k: &mut K) -> Option<Verdict> {
+    match &identity.claim {
+        Claim::Same(left, right) => {
+            let l = eval(left, k)?;
+            let r = eval(right, k)?;
+            let (lm, rm) = (k.measure(&l), k.measure(&r));
+            let scale = (lm.volume.abs() + rm.volume.abs()).max(1e-12);
+            Some(compare(&lm, &rm, scale))
+        }
+        // Normalised by the INPUT scale, never by the result itself:
+        // dividing a near-zero volume by its own magnitude yields ~1
+        // for any leftover, or 0/0 when the kernel returns nothing.
+        Claim::Empty(expr) => {
+            let v = eval(expr, k)?;
+            let m = k.measure(&v);
+            let a = k.operand(0).map(|s| k.measure(&s))?;
+            let b = k.operand(1).map(|s| k.measure(&s))?;
+            let scale = (a.volume.abs() + b.volume.abs()).max(1e-12);
             Some(Verdict {
                 scores: vec![Score {
                     metric: "volume",
-                    residual: (d.volume + i.volume - a.volume).abs() / scale,
+                    residual: m.volume.abs() / scale,
                 }],
             })
         }
-        "inclusion-exclusion" => {
-            let u = op(Op::Union, Pair::Ab)?;
-            let i = op(Op::Intersection, Pair::Ab)?;
+        Claim::Sum(left, right) => {
+            let mut total = 0.0;
+            for e in left {
+                let s = eval(e, k)?;
+                total += k.measure(&s).volume;
+            }
+            let mut want = 0.0;
+            for e in right {
+                let s = eval(e, k)?;
+                want += k.measure(&s).volume;
+            }
+            let scale = want.abs().max(1e-12);
             Some(Verdict {
                 scores: vec![Score {
                     metric: "volume",
-                    residual: (u.volume + i.volume - (a.volume + b.volume)).abs() / scale,
+                    residual: (total - want).abs() / scale,
                 }],
             })
         }
-        // A u A is A: an EQUIVALENCE, so the result must match A in every
-        // reported metric, not merely in volume.
-        "idempotence" => {
-            let u = op(Op::Union, Pair::Aa)?;
-            Some(compare(&u, a, scale))
-        }
-        // A u B and B u A denote the same solid.
-        "commutativity" => {
-            let ab = op(Op::Union, Pair::Ab)?;
-            let ba = op(Op::Union, Pair::Ba)?;
-            Some(compare(&ab, &ba, scale))
-        }
-        _ => None,
     }
 }

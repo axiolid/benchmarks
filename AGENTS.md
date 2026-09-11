@@ -846,7 +846,7 @@ volume about the centroid rather than the origin, which is translation-
 invariant and removes the cancellation.
 
 
-## Exactness scoring: metrics beyond volume
+## Exactness scoring: 13 identities over an expression tree
 
 Four identities exist in ops.rs and every law is literally vol(...):
 partition, inclusion-exclusion, idempotence, commutativity. The
@@ -919,6 +919,57 @@ precisely the CGAL failure mode -- exact predicates keep the
 combinatorial decisions right while inexact CONSTRUCTIONS place
 intersection points badly, which shows up as topology damage over
 consecutive operations rather than as a volume error.
+
+
+The suite now scores 13 identities, covering all nine proposed laws.
+The operand model is an expression TREE, not an operand pair:
+associativity needs `(AuB) u C`, whose operand is itself a result,
+which no enum over two named operands can express. A third operand C
+overlapping both A and B was added -- a disjoint C would make both
+groupings trivially equal and prove nothing.
+
+Claims come in three kinds because the metrics that MEAN anything
+differ per kind:
+
+- Same: both sides denote one solid, so every shared metric is
+  compared.
+- Empty: scored as volume against zero, normalised by the INPUT
+  scale. Normalising by the result would divide a near-zero volume
+  by its own magnitude and pass anything.
+- Sum: volume only. Area and the topological counts are not
+  additive across a cut.
+
+The C ABI kernels are absent by construction, not by oversight: their
+entry point takes OBB corners and returns a bare double, so it cannot
+accept an intermediate RESULT as an operand. Nested laws are
+unreachable through that interface.
+
+The suite found a real defect on its first run. `(A-B) u (A^B) = A`
+scores 2.0 on euler while volume is exact:
+
+```
+lhs  vol=4.800000000  euler=4  comps=2  manifold=true
+rhs  vol=4.800000000  euler=2  comps=1  manifold=true
+```
+
+Splitting A and re-uniting the pieces returns TWO closed solids
+instead of one. Volume is right because the pieces partition A
+exactly, and each piece is closed and two-manifold on its own, so a
+manifold audit passes too. Only the component count and Euler
+characteristic tell "one solid" from "two that touch".
+Filed as axiolid/kernel#100.
+
+A-A=0 reports n/a for raw_boolmesh: upstream refuses the operation.
+Refusing is defensible, so it is rendered as an absence rather than a
+failure -- which is why score() returns Option and null is never
+collapsed to zero.
+
+Mutation-verified: dropping one triangle from every axiolid boolean
+result moves six laws off epsilon (1.0e0 euler on both idempotence
+laws, 5.5e-2 volume on inclusion-exclusion, 7.4e-2 area on
+commutativity-i, n/a on the nested laws) while raw_boolmesh stays at
+epsilon throughout. The per-column contrast is the proof the
+detection is real and not a harness artefact.
 
 ## Rotation invariance
 
