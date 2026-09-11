@@ -217,11 +217,20 @@ pub fn report() -> usize {
     // leaves a metric out reads as though it were never considered;
     // these are known gaps with a stated reason, and they disappear
     // from this list as the capability lands.
-    rows.push(Row::absent("peak RSS", "no allocator instrumentation yet"));
-    rows.push(Row::absent(
-        "allocation count",
-        "no allocator instrumentation yet",
-    ));
+    // Allocation volume for the operation itself, measured rather than
+    // inferred. Recorded, not gated: an absolute byte count is
+    // machine- and allocator-dependent, so a threshold here would fail
+    // for reasons unrelated to the change under test. Trend belongs in
+    // the nightly comparison, not in a pass/fail on one run.
+    let (_, usage) =
+        crate::memory::measure(|| provider.boolean(&a, &b, BooleanOperator::Union, &options));
+    rows.push(Row::record("allocation count", format!("{}", usage.allocs)));
+    rows.push(Row::record("allocated bytes", format!("{}", usage.bytes)));
+    rows.push(Row::record("peak scratch bytes", format!("{}", usage.peak)));
+    rows.push(match crate::memory::peak_rss_kb() {
+        Some(kb) => Row::record("peak RSS", format!("{kb} kB")),
+        None => Row::absent("peak RSS", "no /proc/self/status"),
+    });
     rows.push(Row::absent("cache misses", "needs perf counters"));
 
     emit("union of two overlapping boxes", &rows)

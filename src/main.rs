@@ -37,6 +37,7 @@ mod drift;
 mod exactness;
 mod grid_stress;
 mod gyroid;
+mod memory;
 mod menger;
 mod metrics_full;
 mod ops;
@@ -44,6 +45,11 @@ mod remesh;
 mod rotate;
 mod scale;
 mod scorecard;
+
+/// Counting allocator, so allocation volume is measurable rather than
+/// inferred from instruction counts.
+#[global_allocator]
+static ALLOC: memory::Counting = memory::Counting;
 mod sliver;
 mod sphere;
 mod sphere_grid;
