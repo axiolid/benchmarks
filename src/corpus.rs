@@ -132,11 +132,15 @@ fn exercise(model: &Model) -> Outcome {
         "open" if health.boundary_edges == 0 => {
             return Outcome::WrongShape("filed open but audit found no boundary edge");
         }
-        "non_manifold"
-            if health.non_manifold_edges == 0 && health.inconsistent_winding_edges == 0 =>
-        {
-            return Outcome::WrongShape("filed non-manifold but audit found none");
-        }
+        // Only EDGE non-manifoldness is checkable here. The corpus flags
+        // a model non-manifold if either its edges or its VERTICES are,
+        // and a bowtie vertex leaves every edge with exactly two faces:
+        // models 39549 and 58111 are flagged, yet an independent
+        // edge-multiplicity count finds zero bad edges. MeshHealth
+        // exposes no vertex-manifold field, so asserting on this class
+        // would fail on correctly-labelled input. Left unasserted rather
+        // than weakened into something that looks like a check.
+
         // A sliver triangle is dropped from `usable_triangles`, which
         // orphans its edges and reports them as boundary. Model 37743:
         // 1 degenerate triangle -> exactly 3 boundary edges, while an
