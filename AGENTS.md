@@ -846,6 +846,46 @@ volume about the centroid rather than the origin, which is translation-
 invariant and removes the cancellation.
 
 
+## Exactness scoring is volume-only (audit)
+
+Four identities exist in ops.rs and every law is literally vol(...):
+partition, inclusion-exclusion, idempotence, commutativity. The
+scoring hook returns Option<f64> -- a volume -- so the harness
+cannot express a non-volume check at all.
+
+The gap is real and provable without a kernel. Let A be the unit cube
+and X the same cube translated to x=100. Both have volume 1, so a
+kernel returning X for A u A scores residual 0 and PASSES. The same
+hole exists for A ^ A = A and commutativity.
+
+Which metrics discriminate, for that counterexample:
+
+| metric | catches A vs X |
+|---|---|
+| bounds | yes |
+| Hausdorff distance | yes |
+| point containment | yes |
+| surface area | no |
+| Euler / genus | no |
+| component count | no |
+
+Bounds, Hausdorff and containment are POSITIONAL; area, genus and
+component count are not. A scoring upgrade that adds only the
+topological metrics would still pass the counterexample above, so
+at least one positional metric is required.
+
+Missing identities: A-A=0, (A-B)^B=0, (A-B)u(A^B)=A, associativity
+of union and of intersection, and both absorption laws. Only
+idempotence and commutativity of the listed set are covered.
+
+drift.rs is volume-only too: it maps axiolid_volume over the chain
+and never audits topology, so a chain that accumulates
+self-intersections while preserving volume scores clean. That is
+precisely the CGAL failure mode -- exact predicates keep the
+combinatorial decisions right while inexact CONSTRUCTIONS place
+intersection points badly, which shows up as topology damage over
+consecutive operations rather than as a volume error.
+
 ## Rotation invariance
 
 `rotate.rs`. A rigid motion cannot change a solid, so rotating both operands,
