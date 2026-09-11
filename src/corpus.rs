@@ -215,7 +215,9 @@ pub fn report() -> usize {
     // would print a backtrace per model and bury the table, so it is
     // silenced for the duration and restored afterwards.
     let previous = std::panic::take_hook();
-    std::panic::set_hook(Box::new(|_| {}));
+    if std::env::var("AXIOLID_CORPUS_TRACE").is_err() {
+        std::panic::set_hook(Box::new(|_| {}));
+    }
 
     let mut classes: Vec<String> = models.iter().map(|m| m.class.clone()).collect();
     classes.sort();
