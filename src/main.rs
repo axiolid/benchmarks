@@ -30,6 +30,7 @@ use ifc_lite_geometry::mesh::Mesh as LiteMesh;
 
 /// Opt-in analytic fast path (see `cellular.rs`). Never auto-dispatched: the
 /// caller chooses fast-vs-exact explicitly, so a run's topology is predictable.
+mod cancellation;
 mod cellular;
 mod contact;
 mod corpus;
@@ -1082,6 +1083,9 @@ fn main() {
     }
     if enabled("parallel") {
         invariant_faults += parallel::report();
+    }
+    if enabled("cancel") {
+        invariant_faults += cancellation::report();
     }
     if enabled("drift") {
         invariant_faults += drift::topology_report();

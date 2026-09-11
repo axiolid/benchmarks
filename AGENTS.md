@@ -1052,6 +1052,68 @@ Synthetic cases stay the CI gate. The corpus measures reach, not
 correctness: it has no ground truth, so it can only assert that a
 defect class provokes the right BEHAVIOUR.
 
+## Scorecard
+
+`src/scorecard.rs` holds the per-scenario table. `Kind::Gate` and
+`Kind::Record` are separate variants rather than a naming convention:
+Gate rows feed the exit code, Record rows structurally cannot. A row
+that cannot fail is not a gate, and encoding that in the type stops a
+table implying a measurement was checked when it was not.
+
+`Row::absent` names a known gap with a reason instead of omitting the
+row. An omitted metric reads as one nobody considered; an absent row
+with a stated reason reads as outstanding work.
+
+Sections, each `--only=<name>`:
+
+- `metrics` — 17 rows over a union whose every quantity is known
+  analytically, so gates compare against facts rather than against a
+  second unverified computation.
+- `parallel` — thread sweep, efficiency, and the sequential/parallel
+  equivalence gate.
+- `cancel` — cancellation and budget behaviour.
+
+## What is gated versus recorded, and why
+
+Gated: operation succeeded, finite coordinates, volume, closed
+manifold, orientable winding, self-intersections, degenerate triangles,
+Euler, components, genus, surface area, bounding box, point membership,
+deterministic hash, Hausdorff invariance, sequential/parallel
+equivalence, triangle-count stability, batch cancellation.
+
+Recorded: allocation count, allocated bytes, peak scratch, peak RSS,
+wall clock, speedup, efficiency, duplicate vertices, output size.
+
+The split is not arbitrary. Absolute byte counts and timings are
+machine- and allocator-dependent, so a threshold fails for reasons
+unrelated to the change under test; trend comparison belongs in the
+nightly run. Correctness quantities have knowable right answers and are
+gated.
+
+## Two rows deliberately not gated
+
+`SIMD on/off equivalence` — nothing in the boolean provider reads
+`InstructionPolicy` or `CpuExecution`, so toggling Auto against
+Portable compares a path against itself and reports a guaranteed pass.
+A vacuous gate is worse than an absent one because it looks like
+coverage. Wiring the policy through the provider is the prerequisite.
+
+`memory budget` — `ScratchRequirement::fits_budget` exists and is
+unit-tested but has no production caller, so a budget is accepted and
+silently ignored. Filed as kernel#104.
+
+## Positive controls
+
+A gate asserting that clean output has no defects is unfalsifiable when
+every mesh in reach is clean. Mutation testing caught exactly this: the
+self-intersection gate passed while pointed at an entirely different
+mesh. It now runs the detector over deliberately crossing fins first
+and gates on finding them, so the clean assertion proves the detector
+was awake.
+
+Apply the same rule to any new row: if no realistic defect makes it
+fail, it is decoration.
+
 ## Behavioural corpus harness
 
 `src/corpus.rs` runs the packed corpus sample through a self-union and

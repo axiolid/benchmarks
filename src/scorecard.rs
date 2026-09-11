@@ -74,10 +74,7 @@ impl Row {
 pub fn emit(scenario: &str, rows: &[Row]) -> usize {
     println!("\n  scorecard: {scenario}");
     println!("  {}", "-".repeat(74));
-    println!(
-        "  {:<28} {:<6} {:>16}  {}",
-        "metric", "kind", "value", "verdict"
-    );
+    println!("  {:<28} {:<6} {:>16}  verdict", "metric", "kind", "value");
 
     let mut faults = 0usize;
     for r in rows {
