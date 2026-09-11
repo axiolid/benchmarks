@@ -42,6 +42,7 @@ dependencies = [
  "boolmesh",
  "cc",
  "ifc-lite-geometry",
+ "rayon",
 ]
 
 [[package]]

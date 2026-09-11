@@ -41,6 +41,7 @@ mod memory;
 mod menger;
 mod metrics_full;
 mod ops;
+mod parallel;
 mod remesh;
 mod rotate;
 mod scale;
@@ -1078,6 +1079,9 @@ fn main() {
     }
     if enabled("metrics") {
         invariant_faults += metrics_full::report();
+    }
+    if enabled("parallel") {
+        invariant_faults += parallel::report();
     }
     if enabled("drift") {
         invariant_faults += drift::topology_report();
