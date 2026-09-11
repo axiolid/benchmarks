@@ -9,8 +9,9 @@
 //! kernels actually break. Well-separated boxes would score every kernel 0 and
 //! prove nothing.
 
-use crate::ops::{residual, Op, Pair, IDENTITIES};
+use crate::ops::{score, Metrics, Op, Pair, IDENTITIES};
 use crate::{axiolid_obb, axiolid_volume, flat_cutters, Box3, Obb};
+use axiolid_mesh::TriMesh;
 
 /// The operand pair every kernel is scored on.
 ///
@@ -38,7 +39,66 @@ fn resolve(a: Obb, b: Obb, pair: Pair) -> (Obb, Obb) {
     }
 }
 
-fn axiolid_op(a: Obb, b: Obb, op: Op, pair: Pair) -> Option<f64> {
+/// Full metric bundle for a mesh the axiolid provider produced.
+///
+/// Only this kernel can report topology: the C ABI shims return a bare
+/// double, so their columns stay volume-only and the comparison skips
+/// what they cannot supply.
+fn axiolid_metrics(mesh: &TriMesh) -> Metrics {
+    use axiolid_mesh::component_count;
+    let volume = axiolid_volume(mesh);
+    let area = mesh
+        .indices
+        .chunks_exact(3)
+        .map(|t| {
+            let p = &mesh.positions;
+            let (a, b, c) = (p[t[0] as usize], p[t[1] as usize], p[t[2] as usize]);
+            (b - a).cross(c - a).length() * 0.5
+        })
+        .sum::<f64>();
+    let mut lo = [f64::INFINITY; 3];
+    let mut hi = [f64::NEG_INFINITY; 3];
+    for p in &mesh.positions {
+        let v = [p.x, p.y, p.z];
+        for i in 0..3 {
+            lo[i] = lo[i].min(v[i]);
+            hi[i] = hi[i].max(v[i]);
+        }
+    }
+    let bounds = if mesh.positions.is_empty() {
+        None
+    } else {
+        Some([lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]])
+    };
+    Metrics {
+        volume,
+        area: Some(area),
+        bounds,
+        euler: Some(euler_of(mesh)),
+        components: Some(component_count(mesh)),
+        manifold: Some(is_closed_manifold(mesh)),
+    }
+}
+
+/// Euler characteristic from the half-edge counts.
+///
+/// Computed here rather than via `genus()` because genus REFUSES a
+/// multi-component or open result (kernel #98/#99), and a damaged
+/// result is exactly the case this scoring exists to detect. The raw
+/// characteristic is always defined.
+fn euler_of(mesh: &TriMesh) -> i64 {
+    use axiolid_mesh::EdgeAdjacency;
+    EdgeAdjacency::build(mesh).euler_characteristic()
+}
+
+/// Whether the mesh is a closed two-manifold.
+fn is_closed_manifold(mesh: &TriMesh) -> bool {
+    use axiolid_mesh::EdgeAdjacency;
+    let adjacency = EdgeAdjacency::build(mesh);
+    adjacency.boundary_edges().count() == 0 && adjacency.non_manifold_edges().count() == 0
+}
+
+fn axiolid_op(a: Obb, b: Obb, op: Op, pair: Pair) -> Option<Metrics> {
     use axiolid_contracts::ExecutionOptions;
     use axiolid_core::{BooleanOperator, Tolerance};
     use axiolid_mesh_boolean_boolmesh::BoolmeshBoolean;
@@ -59,11 +119,11 @@ fn axiolid_op(a: Obb, b: Obb, op: Op, pair: Pair) -> Option<f64> {
             &options,
         )
         .ok()
-        .map(|o| axiolid_volume(&o.mesh))
+        .map(|o| axiolid_metrics(&o.mesh))
 }
 
 /// Evaluate one operation with upstream `boolmesh` directly, no provider.
-fn raw_op(a: Obb, b: Obb, op: Op, pair: Pair) -> Option<f64> {
+fn raw_op(a: Obb, b: Obb, op: Op, pair: Pair) -> Option<Metrics> {
     use crate::to_manifold_obb;
     use boolmesh::prelude::{compute_boolean, OpType};
 
@@ -77,18 +137,20 @@ fn raw_op(a: Obb, b: Obb, op: Op, pair: Pair) -> Option<f64> {
     // Reuse the shared divergence-theorem helper so this column is measured the
     // same way as every other, rather than by a second implementation that
     // could disagree for its own reasons.
-    Some(
-        crate::signed_volume(
-            out.get_indices()
-                .iter()
-                .map(|t| [t.x as u32, t.y as u32, t.z as u32]),
-            |i| {
-                let q = out.ps[i as usize];
-                [q.x, q.y, q.z]
-            },
-        )
-        .abs(),
+    let volume = crate::signed_volume(
+        out.get_indices()
+            .iter()
+            .map(|t| [t.x as u32, t.y as u32, t.z as u32]),
+        |i| {
+            let q = out.ps[i as usize];
+            [q.x, q.y, q.z]
+        },
     )
+    .abs();
+    Some(Metrics {
+        volume,
+        ..Metrics::default()
+    })
 }
 
 /// Evaluate one operation through a C ABI entry point.
@@ -105,7 +167,7 @@ fn cpp_op(
     b: Obb,
     op: Op,
     pair: Pair,
-) -> Option<f64> {
+) -> Option<Metrics> {
     let (subject, tool) = resolve(a, b, pair);
     // The C shim builds its host from min/max, which is only exact for an
     // unrotated subject. Refuse rather than silently squaring off a rotation.
@@ -123,7 +185,12 @@ fn cpp_op(
     if v < 0.0 {
         None
     } else {
-        Some(v)
+        // Volume only: the C ABI returns a bare double, so every
+        // topological field stays `None` and is skipped when scoring.
+        Some(Metrics {
+            volume: v,
+            ..Metrics::default()
+        })
     }
 }
 
@@ -136,12 +203,12 @@ fn cpp_op(
 /// because a kernel that declines everything must not appear flawless.
 pub fn report(json: bool) -> Vec<String> {
     let (a, b) = operands();
-    let vol_a = axiolid_volume(&axiolid_obb(a));
-    let vol_b = axiolid_volume(&axiolid_obb(b));
+    let metrics_a = axiolid_metrics(&axiolid_obb(a));
+    let metrics_b = axiolid_metrics(&axiolid_obb(b));
 
     // (label, evaluator). Each closure adapts one kernel to the shared
-    // `(Op, swap) -> Option<f64>` signature the identity checker calls.
-    type Eval = Box<dyn FnMut(Op, Pair) -> Option<f64>>;
+    // `(Op, Pair) -> Option<Metrics>` signature the identity checker calls.
+    type Eval = Box<dyn FnMut(Op, Pair) -> Option<Metrics>>;
     let mut kernels: Vec<(&str, Eval)> = vec![
         ("axiolid", Box::new(move |op, pr| axiolid_op(a, b, op, pr))),
         ("raw_boolmesh", Box::new(move |op, pr| raw_op(a, b, op, pr))),
@@ -180,16 +247,23 @@ pub fn report(json: bool) -> Vec<String> {
         }
         let mut cells = Vec::new();
         for (name, eval) in kernels.iter_mut() {
-            let r = residual(identity, vol_a, vol_b, |op, pr| eval(op, pr));
+            let verdict = score(identity, &metrics_a, &metrics_b, eval);
+            let r = verdict.as_ref().and_then(super::ops::Verdict::worst);
+            let which = verdict.as_ref().and_then(super::ops::Verdict::worst_metric);
             if !json {
-                match r {
-                    Some(v) => print!("{v:>14.2e}"),
-                    None => print!("{:>14}", "n/a"),
+                match (r, which) {
+                    // Name the metric that failed: "which invariant broke"
+                    // is the diagnostic, not the magnitude alone.
+                    (Some(v), Some(m)) if v > 1e-12 => print!("{:>14}", format!("{v:.0e} {m}")),
+                    (Some(v), _) => print!("{v:>14.2e}"),
+                    _ => print!("{:>14}", "n/a"),
                 }
             }
-            cells.push(match r {
-                Some(v) => format!("\"{name}\":{v:.6e}"),
-                None => format!("\"{name}\":null"),
+            cells.push(match (r, which) {
+                (Some(v), Some(m)) => {
+                    format!("\"{name}\":{{\"residual\":{v:.6e},\"metric\":\"{m}\"}}")
+                }
+                _ => format!("\"{name}\":null"),
             });
         }
         if !json {

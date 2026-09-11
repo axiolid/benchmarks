@@ -57,51 +57,188 @@ pub enum Pair {
     Aa,
 }
 
-/// Relative residual for one identity, given a kernel's `op` evaluator.
+/// What a kernel reports about one boolean result.
 ///
-/// `op(a_is_host, operand, op)` returns the volume of the requested operation,
-/// or `None` if the kernel failed or is not built. Returning `None` here means
-/// "cannot be scored", which the caller must render as an absence rather than
-/// as a perfect zero -- a kernel that refuses every operation would otherwise
-/// look flawless.
+/// Volume alone cannot distinguish a correct solid from a wrong one
+/// with the same volume: a unit cube and the same cube translated 100
+/// units away both measure 1. Bounds and the topological counts are
+/// what make an identity discriminating rather than merely plausible.
 ///
-/// The residual is normalised by `vol(A) + vol(B)` so magnitudes are comparable
-/// across operand sizes; an absolute residual would make large operands look
-/// worse than small ones for the same relative error.
-pub fn residual<F>(identity: &Identity, vol_a: f64, vol_b: f64, mut op: F) -> Option<f64>
+/// Every field except `volume` is optional because the C ABI kernels
+/// return a bare double: they can be scored on volume and nothing
+/// else. `None` means NOT REPORTABLE by this kernel, which must render
+/// as an absence rather than as a passing zero.
+#[derive(Clone, Copy, Default)]
+pub struct Metrics {
+    /// Enclosed volume. Every kernel can supply this.
+    pub volume: f64,
+    /// Total surface area.
+    pub area: Option<f64>,
+    /// Axis-aligned bounds as [minx, miny, minz, maxx, maxy, maxz].
+    ///
+    /// The only POSITIONAL metric here. Area, Euler and component count
+    /// are all translation-invariant, so without bounds a result that is
+    /// the right shape in the wrong place still scores clean.
+    pub bounds: Option<[f64; 6]>,
+    /// Euler characteristic V - E + F.
+    pub euler: Option<i64>,
+    /// Number of connected components.
+    pub components: Option<usize>,
+    /// Whether the result passed a closed-manifold audit.
+    pub manifold: Option<bool>,
+}
+
+/// One scored metric within an identity.
+#[derive(Clone, Copy)]
+pub struct Score {
+    /// Which quantity was compared.
+    pub metric: &'static str,
+    /// Relative residual, or absolute for integer-valued metrics.
+    pub residual: f64,
+}
+
+/// The result of scoring one identity against one kernel.
+///
+/// A list rather than a single number: reporting only the worst metric
+/// would hide WHICH invariant broke, and that is the diagnostic value.
+/// An empty list means the kernel could not be scored at all.
+#[derive(Clone, Default)]
+pub struct Verdict {
+    /// One entry per metric that both sides could report.
+    pub scores: Vec<Score>,
+}
+
+impl Verdict {
+    /// Worst residual across every scored metric.
+    #[must_use]
+    pub fn worst(&self) -> Option<f64> {
+        self.scores
+            .iter()
+            .map(|s| s.residual)
+            .fold(None, |acc: Option<f64>, r| {
+                Some(acc.map_or(r, |a: f64| a.max(r)))
+            })
+    }
+
+    /// Name of the metric with the worst residual.
+    #[must_use]
+    pub fn worst_metric(&self) -> Option<&'static str> {
+        self.scores
+            .iter()
+            .fold(None, |acc: Option<&Score>, s| match acc {
+                Some(b) if b.residual >= s.residual => Some(b),
+                _ => Some(s),
+            })
+            .map(|s| s.metric)
+    }
+}
+
+/// Compare two results that must denote the SAME solid.
+///
+/// Only metrics BOTH sides report are scored. A metric one side cannot
+/// supply is skipped rather than treated as zero, so a kernel is never
+/// credited for a check it did not perform.
+fn compare(left: &Metrics, right: &Metrics, scale: f64) -> Verdict {
+    let mut scores = Vec::new();
+    scores.push(Score {
+        metric: "volume",
+        residual: (left.volume - right.volume).abs() / scale,
+    });
+    if let (Some(la), Some(ra)) = (left.area, right.area) {
+        // Normalised by area, not volume: the two have different units and
+        // dividing an area error by a volume would not be dimensionless.
+        let denom = (la.abs() + ra.abs()).max(1e-12);
+        scores.push(Score {
+            metric: "area",
+            residual: (la - ra).abs() / denom,
+        });
+    }
+    if let (Some(lb), Some(rb)) = (left.bounds, right.bounds) {
+        // The positional check. Worst corner deviation, normalised by the
+        // diagonal so it is comparable across operand sizes.
+        let diag = ((rb[3] - rb[0]).powi(2) + (rb[4] - rb[1]).powi(2) + (rb[5] - rb[2]).powi(2))
+            .sqrt()
+            .max(1e-12);
+        let worst = (0..6)
+            .map(|i| (lb[i] - rb[i]).abs())
+            .fold(0.0_f64, f64::max);
+        scores.push(Score {
+            metric: "bounds",
+            residual: worst / diag,
+        });
+    }
+    if let (Some(le), Some(re)) = (left.euler, right.euler) {
+        // Integer-valued: any difference at all is a topological defect, so
+        // this is an absolute count, not a relative error.
+        scores.push(Score {
+            metric: "euler",
+            residual: (le - re).abs() as f64,
+        });
+    }
+    if let (Some(lc), Some(rc)) = (left.components, right.components) {
+        scores.push(Score {
+            metric: "components",
+            residual: lc.abs_diff(rc) as f64,
+        });
+    }
+    if let (Some(lm), Some(rm)) = (left.manifold, right.manifold) {
+        // A result that stopped being a closed manifold is broken even if
+        // every measurement still agrees.
+        scores.push(Score {
+            metric: "manifold",
+            residual: if lm == rm { 0.0 } else { 1.0 },
+        });
+    }
+    Verdict { scores }
+}
+
+/// Score one identity, given a kernel evaluator that reports full metrics.
+///
+/// Returns `None` when the kernel could not produce every operand the
+/// identity needs, which the caller must render as an absence: a kernel
+/// that refuses everything would otherwise look flawless.
+///
+/// Additive laws are scored on volume alone because area and the
+/// topological counts are not additive across a cut. Equivalence laws
+/// are scored on every metric both sides report.
+pub fn score<F>(identity: &Identity, a: &Metrics, b: &Metrics, mut op: F) -> Option<Verdict>
 where
-    F: FnMut(Op, Pair) -> Option<f64>,
+    F: FnMut(Op, Pair) -> Option<Metrics>,
 {
-    let scale = (vol_a.abs() + vol_b.abs()).max(1e-12);
-    let value = match identity.name {
-        // vol(A-B) + vol(A^B) must reconstruct vol(A) exactly: every point of A
-        // is either in B or not, with no third case.
+    let scale = (a.volume.abs() + b.volume.abs()).max(1e-12);
+    match identity.name {
         "partition" => {
             let d = op(Op::Difference, Pair::Ab)?;
             let i = op(Op::Intersection, Pair::Ab)?;
-            (d + i - vol_a).abs()
+            Some(Verdict {
+                scores: vec![Score {
+                    metric: "volume",
+                    residual: (d.volume + i.volume - a.volume).abs() / scale,
+                }],
+            })
         }
-        // The union double-counts the overlap; adding it back must recover the
-        // sum of the parts.
         "inclusion-exclusion" => {
             let u = op(Op::Union, Pair::Ab)?;
             let i = op(Op::Intersection, Pair::Ab)?;
-            (u + i - (vol_a + vol_b)).abs()
+            Some(Verdict {
+                scores: vec![Score {
+                    metric: "volume",
+                    residual: (u.volume + i.volume - (a.volume + b.volume)).abs() / scale,
+                }],
+            })
         }
-        // A u A is A. Self-union is the classic degenerate case: every face of
-        // the second operand is coincident with one of the first.
+        // A u A is A: an EQUIVALENCE, so the result must match A in every
+        // reported metric, not merely in volume.
         "idempotence" => {
             let u = op(Op::Union, Pair::Aa)?;
-            (u - vol_a).abs()
+            Some(compare(&u, a, scale))
         }
-        // Union is commutative. Any difference is pure operand-order
-        // sensitivity, which a correct kernel cannot have.
+        // A u B and B u A denote the same solid.
         "commutativity" => {
             let ab = op(Op::Union, Pair::Ab)?;
             let ba = op(Op::Union, Pair::Ba)?;
-            (ab - ba).abs()
+            Some(compare(&ab, &ba, scale))
         }
-        _ => return None,
-    };
-    Some(value / scale)
+        _ => None,
+    }
 }

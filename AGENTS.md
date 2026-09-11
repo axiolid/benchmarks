@@ -846,7 +846,7 @@ volume about the centroid rather than the origin, which is translation-
 invariant and removes the cancellation.
 
 
-## Exactness scoring is volume-only (audit)
+## Exactness scoring: metrics beyond volume
 
 Four identities exist in ops.rs and every law is literally vol(...):
 partition, inclusion-exclusion, idempotence, commutativity. The
@@ -873,6 +873,40 @@ Bounds, Hausdorff and containment are POSITIONAL; area, genus and
 component count are not. A scoring upgrade that adds only the
 topological metrics would still pass the counterexample above, so
 at least one positional metric is required.
+
+The scoring hook now returns a metric bundle, not a bare volume.
+Metrics carries volume plus optional area, bounds, Euler
+characteristic, component count and a closed-manifold flag.
+Optional because the C ABI kernels return a bare double: a metric
+one side cannot report is SKIPPED, never scored as a passing zero.
+
+Two classes of law, and the distinction is load-bearing:
+
+- ADDITIVE (partition, inclusion-exclusion): terms sum, so only
+  volume is scored. Surface area is NOT additive across a cut --
+  each piece gains a face the original never had -- so scoring area
+  on a partition law would report a large residual for a kernel
+  that did everything right.
+- EQUIVALENCE (idempotence, commutativity): both sides denote the
+  SAME solid, so every metric both sides report must agree.
+
+Verified by mutation, not by inspection. Translating the A-u-A
+result 100 units in x leaves volume, area, Euler and component
+count identical -- all four are translation-invariant. Before the
+change the identity scored a perfect 1.37e-16. After it:
+
+```
+idempotence      2e1 bounds      1.37e-16      1.37e-16
+                 ^ axiolid       ^ volume-only kernels, unmoved
+```
+
+The volume-only columns stay clean under the same mutation, which
+is the proof that the OLD scoring could not have caught it.
+
+Bounds is currently the only positional metric, so it is the one
+that makes the suite able to detect a right-shaped answer in the
+wrong place. Do not remove it in favour of topology alone.
+
 
 Missing identities: A-A=0, (A-B)^B=0, (A-B)u(A^B)=A, associativity
 of union and of intersection, and both absorption laws. Only
