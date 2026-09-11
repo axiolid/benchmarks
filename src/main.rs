@@ -1060,6 +1060,9 @@ fn main() {
     if enabled("rotate") {
         invariant_faults += rotate::report();
     }
+    if enabled("drift") {
+        invariant_faults += drift::topology_report();
+    }
     if enabled("sphere_grid") {
         sphere_grid::report(reps, sphere_grid_max());
         sphere_grid::blame_probe(20);

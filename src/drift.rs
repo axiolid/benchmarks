@@ -8,6 +8,7 @@ use crate::{
 /// Signature every C ABI subtract entry point shares.
 type CppFn = unsafe extern "C" fn(*const f64, *const f64, *const f64, i32) -> f64;
 use axiolid_contracts::ExecutionOptions;
+use axiolid_core::Point3;
 use axiolid_core::Tolerance;
 use axiolid_mesh::TriMesh;
 use axiolid_mesh_boolean_boolmesh::BoolmeshBoolean;
@@ -126,4 +127,101 @@ pub fn drift_report() {
             cell(oc)
         );
     }
+}
+/// Does TOPOLOGY drift as cuts are chained?
+///
+/// The volume table asks whether the ANSWER stays right. This asks whether
+/// the SOLID stays right, which volume alone cannot see: a chain that
+/// accumulates spurious components or handles can hold its volume while
+/// ceasing to be the shape it claims.
+///
+/// The oracle is analytic, not a second kernel: the wall is a box with n
+/// disjoint holes drilled through its thickness, so the result must have
+/// exactly one component, genus n, and Euler characteristic 2 - 2n. The
+/// holes are 0.067 apart at 30 degrees, so they never merge.
+///
+/// Only the two Rust kernels appear. The C ABI entry point returns a bare
+/// double, so it cannot report topology at all.
+pub fn topology_report() -> usize {
+    println!();
+    println!();
+    println!("Topological drift vs chain length -- rotated cuts");
+    println!("{}", "-".repeat(88));
+    println!("Wall with n holes: 1 component, genus n, chi = 2 - 2n. Deviation is a defect.");
+    println!();
+    println!("{:>5}  {:>26}  {:>26}", "n", "axiolid", "raw_bmesh");
+
+    let mut faults = 0usize;
+    for &n in &[1usize, 2, 4, 8, 16, 32, 64] {
+        let (wall, openings) = wall_with_rotated_openings(n);
+        let want_chi = 2 - 2 * n as i64;
+
+        let ax = {
+            let host = axiolid_obb(Obb::aabb(wall));
+            let tools: Vec<TriMesh> = openings.iter().map(|o| axiolid_obb(*o)).collect();
+            let options = ExecutionOptions::new(Tolerance::MILLIMETRE);
+            BoolmeshBoolean::new()
+                .subtract_many(&host, &tools, &options)
+                .ok()
+                .map(|o| crate::exactness::axiolid_metrics(&o.mesh))
+        };
+
+        let raw = {
+            let mut acc = to_manifold_obb(Obb::aabb(wall));
+            let mut ok = true;
+            for o in &openings {
+                match boolmesh::prelude::compute_boolean(
+                    &acc,
+                    &to_manifold_obb(*o),
+                    boolmesh::prelude::OpType::Subtract,
+                ) {
+                    Ok(next) => acc = next,
+                    Err(_) => {
+                        ok = false;
+                        break;
+                    }
+                }
+            }
+            ok.then(|| crate::exactness::axiolid_metrics(&manifold_to_trimesh(&acc)))
+        };
+
+        let cell = |m: &Option<crate::ops::Metrics>| match m {
+            None => ("n/a".to_owned(), false),
+            Some(m) => {
+                let chi = m.euler.unwrap_or(0);
+                let comps = m.components.unwrap_or(0);
+                let closed = m.manifold.unwrap_or(false);
+                let bad = chi != want_chi || comps != 1 || !closed;
+                let mark = if bad { " !!" } else { "" };
+                let shut = if closed { "" } else { " OPEN" };
+                (format!("chi={chi} c={comps}{shut}{mark}"), bad)
+            }
+        };
+
+        let (sa, bad_a) = cell(&ax);
+        let (sr, bad_r) = cell(&raw);
+        faults += usize::from(bad_a) + usize::from(bad_r);
+        println!("{n:>5}  {sa:>26}  {sr:>26}");
+    }
+
+    println!();
+    if faults == 0 {
+        println!("  topology is exact at every chain length.");
+    } else {
+        println!("  {faults} topological fault(s): the chain changed the SHAPE.");
+    }
+    faults
+}
+
+/// Convert a boolmesh `Manifold` into a `TriMesh` so the shared metric
+/// helpers measure both kernels the same way, rather than by a second
+/// topology implementation that could disagree for its own reasons.
+fn manifold_to_trimesh(m: &boolmesh::prelude::Manifold) -> TriMesh {
+    let positions = m.ps.iter().map(|q| Point3::new(q.x, q.y, q.z)).collect();
+    let indices = m
+        .get_indices()
+        .iter()
+        .flat_map(|t| [t.x as u32, t.y as u32, t.z as u32])
+        .collect();
+    TriMesh::new(positions, indices)
 }

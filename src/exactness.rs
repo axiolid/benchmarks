@@ -18,7 +18,7 @@ use axiolid_mesh::TriMesh;
 /// Only this kernel can report topology: the C ABI shims return a bare
 /// double, so their columns stay volume-only and the comparison skips
 /// what they cannot supply.
-fn axiolid_metrics(mesh: &TriMesh) -> Metrics {
+pub(crate) fn axiolid_metrics(mesh: &TriMesh) -> Metrics {
     use axiolid_mesh::component_count;
     let volume = axiolid_volume(mesh);
     let area = mesh
@@ -60,13 +60,13 @@ fn axiolid_metrics(mesh: &TriMesh) -> Metrics {
 /// multi-component or open result (kernel #98/#99), and a damaged
 /// result is exactly the case this scoring exists to detect. The raw
 /// characteristic is always defined.
-fn euler_of(mesh: &TriMesh) -> i64 {
+pub(crate) fn euler_of(mesh: &TriMesh) -> i64 {
     use axiolid_mesh::EdgeAdjacency;
     EdgeAdjacency::build(mesh).euler_characteristic()
 }
 
 /// Whether the mesh is a closed two-manifold.
-fn is_closed_manifold(mesh: &TriMesh) -> bool {
+pub(crate) fn is_closed_manifold(mesh: &TriMesh) -> bool {
     use axiolid_mesh::EdgeAdjacency;
     let adjacency = EdgeAdjacency::build(mesh);
     adjacency.boundary_edges().count() == 0 && adjacency.non_manifold_edges().count() == 0

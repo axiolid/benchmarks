@@ -971,6 +971,35 @@ commutativity-i, n/a on the nested laws) while raw_boolmesh stays at
 epsilon throughout. The per-column contrast is the proof the
 detection is real and not a harness artefact.
 
+
+## Topological drift
+
+The volume drift table asks whether the ANSWER stays right as cuts are
+chained. `topology_report` asks whether the SOLID stays right, which
+volume cannot see: a chain that accumulates spurious components or
+handles can hold its volume while ceasing to be the shape it claims.
+That is the CGAL warning about inexact CONSTRUCTIONS in chained
+operations, made measurable.
+
+The oracle is analytic, not a second kernel. The fixture is a box with
+n holes drilled through its thickness, so the result must have exactly
+one component and chi = 2 - 2n. The rotated footprint half-extent is
+0.4665 against a 1.0 centre spacing, leaving a 0.067 gap, so the holes
+never merge and genus = n holds for every n in the sweep.
+
+Measured: chi tracks 2 - 2n exactly from n=1 to n=64 on both Rust
+kernels, one component throughout, closed and manifold throughout.
+Topology does not drift.
+
+Only the two Rust kernels appear. The C ABI entry point returns a bare
+double, so it cannot report topology at any chain length -- an absence
+by construction, not an omission.
+
+Mutation-verified: skipping the first cut inside `topology_report`
+moves chi by exactly 2 on all seven rows and drives the process exit
+code to 1, while the raw_bmesh column stays correct. A passing run is
+therefore evidence, not an untested code path.
+
 ## Rotation invariance
 
 `rotate.rs`. A rigid motion cannot change a solid, so rotating both operands,
