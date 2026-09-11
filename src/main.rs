@@ -34,6 +34,7 @@ mod cellular;
 mod contact;
 mod drift;
 mod exactness;
+mod grid_stress;
 mod gyroid;
 mod menger;
 mod ops;
@@ -1059,6 +1060,9 @@ fn main() {
     }
     if enabled("rotate") {
         invariant_faults += rotate::report();
+    }
+    if enabled("grid") {
+        invariant_faults += grid_stress::report();
     }
     if enabled("drift") {
         invariant_faults += drift::topology_report();

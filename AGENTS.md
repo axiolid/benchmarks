@@ -972,6 +972,86 @@ epsilon throughout. The per-column contrast is the proof the
 detection is real and not a harness artefact.
 
 
+## Adversarial grid
+
+Three families of n axis-aligned slabs, one per axis, intersected
+three ways. The triple intersection is n^3 disjoint boxes, so the
+oracle is analytic and exact:
+
+- volume     = n^3 * t^3
+- components = n^3
+- chi        = 2 * n^3
+
+Input grows O(n) while output grows O(n^3): 216 input triangles
+produce 216 cells at n=6. That is the combinatorial explosion
+recent exact-CSG work uses as a crash test, but generated
+parametrically so it carries no third-party licence.
+
+Measured, all exact:
+
+```
+   n      cells      comps      vol err        chi   verdict
+   2          8          8     4.34e-16         16        ok
+   6        216        216     1.93e-15        432        ok
+```
+
+Mutation-verified. Returning the xy comb instead of the xyz grid
+moves all three metrics independently -- comps n^3 to n^2, volume
+off by ~2x, chi halved -- and the fault count reaches the exit
+code (EXIT=1).
+
+## Thingi10K as a nightly corpus
+
+Verified against the dataset README: 10,000 models, 45 percent with
+self-intersections, 31 percent with coplanar self-intersections,
+26 percent multiple components, 22 percent non-manifold, 16 percent
+degenerate faces, 14 percent non-PWN, 11 percent topologically
+open, 10 percent non-oriented.
+
+These are NOT a boolean gate. Partition by defect class and assert
+the behaviour each class should provoke:
+
+| subset | assertion |
+| --- | --- |
+| clean closed manifold | boolean/measure/section succeed, oracles hold |
+| topologically open | typed refusal, not a wrong answer |
+| non-manifold | audit_mesh reports the defect |
+| self-intersecting | detect, refuse, or repair -- never silent |
+| degenerate faces | no panic, no NaN |
+| multiple components | component_count correct |
+| extreme aspect ratios | numerical robustness |
+| very large | memory and scaling |
+
+### Licence blocks vendoring, and blocks more than expected
+
+The kernel is MPL-2.0. Per-model licences from the dataset README,
+counted against that:
+
+```
+SAFE     3142 (31.4%)  CC-BY, CC0, Public Domain, BSD
+CAUTION  3884 (38.8%)  CC-BY-SA, GPL, LGPL -- share-alike vs MPL
+BLOCKED  2974 (29.7%)  NC (2886), ND (414), unknown (4)
+```
+
+Nearly 30 percent cannot ship in this repo at all: non-commercial
+contradicts the MPL grant, and no-derivatives forbids the repair
+and transform the corpus exists to exercise.
+
+Consequence: the corpus is a NIGHTLY job fetching into a gitignored
+cache outside the repo, filtered to the SAFE set, recording model id
+and licence per result. Nothing downloaded is ever committed.
+
+Permanent regression fixtures are ORIGINAL reproductions: when a
+corpus model exposes a defect, reproduce the configuration
+parametrically -- as the adversarial grid and the rotated-opening
+wall already are -- and commit that instead. The fixture then has
+no third-party provenance and an exact oracle, which a downloaded
+mesh never has.
+
+Synthetic cases stay the CI gate. The corpus measures reach, not
+correctness: it has no ground truth, so it can only assert that a
+defect class provokes the right BEHAVIOUR.
+
 ## Topological drift
 
 The volume drift table asks whether the ANSWER stays right as cuts are
