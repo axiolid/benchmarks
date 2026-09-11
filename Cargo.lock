@@ -30,6 +30,7 @@ dependencies = [
  "axiolid-construct",
  "axiolid-contracts",
  "axiolid-core",
+ "axiolid-heal",
  "axiolid-inspect",
  "axiolid-levelset",
  "axiolid-measure",
@@ -114,6 +115,19 @@ dependencies = [
 [[package]]
 name = "axiolid-guarantees"
 version = "0.1.8"
+
+[[package]]
+name = "axiolid-heal"
+version = "0.1.8"
+dependencies = [
+ "axiolid-core",
+ "axiolid-guarantees",
+ "axiolid-measure",
+ "axiolid-mesh",
+ "axiolid-predicates",
+ "axiolid-spatial",
+ "thiserror",
+]
 
 [[package]]
 name = "axiolid-inspect"

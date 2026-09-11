@@ -21,6 +21,11 @@ axiolid-mesh-boolean-boolmesh = { path = "../kernel/crates/providers/mesh/boolme
 axiolid-construct = { path = "../kernel/crates/algorithms/construction/construct" }
 axiolid-levelset = { path = "../kernel/crates/algorithms/sampled/levelset" }
 axiolid-inspect = { path = "../kernel/crates/algorithms/query/inspect" }
+
+# Defect detection: self-intersections and duplicate vertices. Both
+# capabilities existed in the kernel but were unreachable from the
+# harness until this dependency was added.
+axiolid-heal = { path = "../kernel/crates/algorithms/repair/heal" }
 axiolid-measure = { path = "../kernel/crates/algorithms/query/measure" }
 axiolid-reference = { path = "../kernel/crates/algorithms/reference" }
 axiolid-mesh-section-contract = { path = "../kernel/crates/contracts/operations/mesh-section" }

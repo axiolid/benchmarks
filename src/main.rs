@@ -38,10 +38,12 @@ mod exactness;
 mod grid_stress;
 mod gyroid;
 mod menger;
+mod metrics_full;
 mod ops;
 mod remesh;
 mod rotate;
 mod scale;
+mod scorecard;
 mod sliver;
 mod sphere;
 mod sphere_grid;
@@ -1067,6 +1069,9 @@ fn main() {
     }
     if enabled("corpus") {
         invariant_faults += corpus::report();
+    }
+    if enabled("metrics") {
+        invariant_faults += metrics_full::report();
     }
     if enabled("drift") {
         invariant_faults += drift::topology_report();
