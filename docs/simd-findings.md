@@ -178,3 +178,25 @@ Prototype lives in `simd-probe`; it has NOT been applied to the kernel.
 Doing so means touching `MeshHealth`'s edge pipeline, which every
 `is_closed_two_manifold` caller depends on, so it wants its own change
 with the full gate behind it.
+
+## Outcome: the counting sort landed
+
+Kernel commits e077c92 and a24f8a6 replaced the comparison sort in
+the mesh audit with a two-pass counting sort on vertex ids.
+
+Controlled A/B, forced rebuild per arm, same core, median of five:
+
+| area | before | after | gain |
+|---|---|---|---|
+| audit | 582 ms | 449 ms | 23% |
+| measure | 1204 ms | 968 ms | 20% |
+
+A first measurement claimed 37% and 41%. It was wrong: the two arms
+straddled an incremental rebuild, so one of them ran a stale binary.
+The lesson is the same one this repo keeps relearning -- verify the
+binary under test actually contains the change before trusting a
+delta.
+
+Sorting is now absent from both areas. The remaining cost is branch
+bookkeeping plus the page faults for the scratch buffer, which is why
+the classifier now counts kernel paging as allocation.

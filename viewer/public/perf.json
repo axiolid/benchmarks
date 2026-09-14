@@ -1,771 +1,780 @@
 {
- "generatedAt": "2026-09-14T14:54:43",
+ "generatedAt": "2026-09-14T17:35:10",
  "areas": [
   {
    "area": "boolean",
-   "wall_ms": 679.6,
-   "sampled_pct": 96.8,
+   "wall_ms": 563.1,
+   "sampled_pct": 99.7,
    "categories": [
     {
-     "name": "unclassified",
-     "pct": 23.72,
-     "reason": "no rule matched"
-    },
-    {
      "name": "branch_bookkeeping",
-     "pct": 21.25,
+     "pct": 21.03,
      "reason": "structural bookkeeping and validation"
     },
     {
      "name": "sorting",
-     "pct": 19.82,
+     "pct": 19.77,
      "reason": "comparison sort machinery"
     },
     {
      "name": "pointer_chasing",
-     "pct": 18.46,
+     "pct": 19.05,
      "reason": "tree or node traversal"
     },
     {
+     "name": "unclassified",
+     "pct": 18.16,
+     "reason": "no rule matched"
+    },
+    {
      "name": "allocation",
-     "pct": 11.38,
-     "reason": "allocator, zeroing, bulk copy or page fault"
+     "pct": 16.21,
+     "reason": "allocator, zeroing, bulk copy, page fault or kernel memory management"
     },
     {
      "name": "math",
-     "pct": 3.94,
+     "pct": 4.56,
      "reason": "geometric or floating-point arithmetic"
     },
     {
      "name": "hashing",
-     "pct": 1.44,
+     "pct": 1.21,
      "reason": "hash table probe or hashing"
     }
    ],
    "symbols": {
     "branch_bookkeeping": [
      {
-      "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean03::kernel01::shadows01",
-      "pct": 6.78
-     },
-     {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::manifold::hmesh::Hmesh::new",
-      "pct": 6.76
+      "pct": 7.22
      },
      {
-      "symbol": "axiolid_mesh_boolean_boolmesh::csg::manifold::Manifold::new",
-      "pct": 3.75
+      "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean03::kernel01::shadows01",
+      "pct": 4.8
      },
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean03::kernel02::Kernel02::op",
-      "pct": 3.42
+      "pct": 4.4
+     },
+     {
+      "symbol": "axiolid_mesh_boolean_boolmesh::csg::manifold::Manifold::new",
+      "pct": 3.89
      },
      {
       "symbol": "axiolid_mesh::component::component_count",
-      "pct": 0.27
+      "pct": 0.32
+     },
+     {
+      "symbol": "__count_memcg_events",
+      "pct": 0.17
      },
      {
       "symbol": "count_memcg_events.constprop.0",
-      "pct": 0.14
+      "pct": 0.11
      },
      {
-      "symbol": "axiolid_mesh::triangle::TriMesh::validate_structure",
-      "pct": 0.13
+      "symbol": "__cgroup_account_cputime_field",
+      "pct": 0.06
+     },
+     {
+      "symbol": "axiolid_mesh_contracts::solid::SolidRequirements::validate",
+      "pct": 0.05
      }
     ],
     "pointer_chasing": [
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::manifold::collider::find_collisions::_$u7b$$u7b$closure$u7d$$u7d$::h6de4b1d661155d69",
-      "pct": 5.74
+      "pct": 6.05
      },
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::manifold::collider::MortonCollider::new",
-      "pct": 4.63
+      "pct": 4.65
      },
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::manifold::collider::PlanarGrid::collision",
-      "pct": 3.38
+      "pct": 3.74
      },
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::manifold::collider::PlanarGrid::new",
-      "pct": 2.47
+      "pct": 2.6
      },
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::manifold::collider::morton_code",
-      "pct": 1.26
+      "pct": 1.23
      },
      {
       "symbol": "<core::iter::adapters::map::Map<I,F> as core::iter::traits::iterator::Iterator>::fold",
-      "pct": 0.65
-     },
-     {
-      "symbol": "tcp_rbtree_insert",
-      "pct": 0.19
+      "pct": 0.49
      },
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::triangulation::flat_tree::compute_query_flat_tree",
-      "pct": 0.14
+      "pct": 0.17
+     },
+     {
+      "symbol": "<core::iter::adapters::map::Map<I,F> as core::iter::traits::iterator::Iterator>::try_fold",
+      "pct": 0.11
      }
     ],
     "sorting": [
      {
       "symbol": "core::slice::sort::shared::smallsort::small_sort_general",
-      "pct": 5.46
+      "pct": 5.24
      },
      {
       "symbol": "core::slice::sort::unstable::quicksort::quicksort",
-      "pct": 4.52
+      "pct": 4.42
+     },
+     {
+      "symbol": "core::slice::sort::unstable::quicksort::quicksort",
+      "pct": 2.04
      },
      {
       "symbol": "core::slice::sort::shared::smallsort::small_sort_network",
-      "pct": 1.99
-     },
-     {
-      "symbol": "core::slice::sort::unstable::quicksort::quicksort",
-      "pct": 1.48
+      "pct": 1.66
      },
      {
       "symbol": "core::slice::sort::stable::quicksort::quicksort",
-      "pct": 1.23
-     },
-     {
-      "symbol": "axiolid_mesh::component::partition_of",
-      "pct": 1.05
-     },
-     {
-      "symbol": "core::slice::sort::shared::smallsort::small_sort_network",
-      "pct": 0.85
-     },
-     {
-      "symbol": "core::slice::sort::shared::smallsort::insertion_sort_shift_left",
-      "pct": 0.71
+      "pct": 1.15
      },
      {
       "symbol": "core::slice::sort::unstable::quicksort::quicksort",
-      "pct": 0.65
+      "pct": 0.9
+     },
+     {
+      "symbol": "axiolid_mesh::component::partition_of",
+      "pct": 0.85
+     },
+     {
+      "symbol": "core::slice::sort::shared::smallsort::small_sort_network",
+      "pct": 0.77
      },
      {
       "symbol": "core::slice::sort::shared::smallsort::small_sort_general_with_scratch",
-      "pct": 0.52
-     },
-     {
-      "symbol": "core::slice::sort::shared::pivot::median3_rec",
-      "pct": 0.37
+      "pct": 0.57
      },
      {
       "symbol": "core::slice::sort::shared::smallsort::insertion_sort_shift_left",
-      "pct": 0.33
+      "pct": 0.51
+     },
+     {
+      "symbol": "core::slice::sort::shared::pivot::median3_rec",
+      "pct": 0.5
+     },
+     {
+      "symbol": "core::slice::sort::shared::smallsort::small_sort_general_with_scratch",
+      "pct": 0.34
      }
     ],
     "unclassified": [
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::simplification::simplify_topology",
-      "pct": 3.41
+      "pct": 3.24
      },
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::triangulation::tri_halfs::tri_halfs_single",
-      "pct": 3.33
-     },
-     {
-      "symbol": "_raw_spin_lock",
-      "pct": 1.6
+      "pct": 3.17
      },
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean45::append_whole_edges",
-      "pct": 1.4
-     },
-     {
-      "symbol": "clear_page_erms",
-      "pct": 1.22
-     },
-     {
-      "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean45::boolean45",
-      "pct": 1.18
+      "pct": 1.54
      },
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::compute_boolean",
-      "pct": 1.18
+      "pct": 1.12
+     },
+     {
+      "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean45::boolean45",
+      "pct": 1.06
      },
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean03::kernel11::Kernel11::op",
-      "pct": 0.95
-     },
-     {
-      "symbol": "sync_regs",
-      "pct": 0.9
+      "pct": 1.01
      },
      {
       "symbol": "core::ops::function::impls::<impl core::ops::function::FnMut<A> for &mut F>::call_mut",
-      "pct": 0.81
+      "pct": 0.74
+     },
+     {
+      "symbol": "core::ops::function::impls::<impl core::ops::function::FnMut<A> for &mut F>::call_mut",
+      "pct": 0.57
      },
      {
       "symbol": "_RNvXs2_NtNtCs75vJTIYSa2J_3std4hash6randomNtB5_13DefaultHasherNtNtCs27Vx93FoQ6z_4core4hash6Hasher5write.llvm.1098674537862014715",
-      "pct": 0.73
+      "pct": 0.44
      },
      {
-      "symbol": "__list_del_entry_valid_or_report",
-      "pct": 0.57
+      "symbol": "core::ops::function::impls::<impl core::ops::function::FnMut<A> for &mut F>::call_mut",
+      "pct": 0.39
+     },
+     {
+      "symbol": "__pte_offset_map",
+      "pct": 0.27
+     },
+     {
+      "symbol": "__pte_offset_map_lock",
+      "pct": 0.26
      }
     ],
     "math": [
      {
       "symbol": "__ieee754_acos_fma",
-      "pct": 2.33
+      "pct": 2.63
      },
      {
       "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean03::kernel12::intersect12",
-      "pct": 1.28
-     },
-     {
-      "symbol": "axiolid_mesh_boolean_boolmesh::convert::six_signed_volume",
-      "pct": 0.18
+      "pct": 1.02
      },
      {
       "symbol": "axiolid_mesh_contracts::solid::six_signed_volume",
-      "pct": 0.14
+      "pct": 0.48
+     },
+     {
+      "symbol": "axiolid_mesh_boolean_boolmesh::convert::six_signed_volume",
+      "pct": 0.32
+     },
+     {
+      "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean03::kernel03::winding03",
+      "pct": 0.11
      }
     ],
     "allocation": [
      {
-      "symbol": "asm_exc_page_fault",
-      "pct": 1.75
-     },
-     {
       "symbol": "__memmove_avx512_unaligned_erms",
-      "pct": 1.74
+      "pct": 2.06
      },
      {
-      "symbol": "malloc",
-      "pct": 1.46
+      "symbol": "asm_exc_page_fault",
+      "pct": 2.03
+     },
+     {
+      "symbol": "clear_page_erms",
+      "pct": 1.36
      },
      {
       "symbol": "<alloc::vec::Vec<T> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<T,I>>::from_iter",
-      "pct": 1.09
+      "pct": 1.18
      },
      {
       "symbol": "__memset_avx512_unaligned_erms",
-      "pct": 1.03
+      "pct": 1.07
+     },
+     {
+      "symbol": "malloc",
+      "pct": 1.02
      },
      {
       "symbol": "cfree@GLIBC_2.2.5",
-      "pct": 0.86
+      "pct": 0.84
+     },
+     {
+      "symbol": "_raw_spin_lock",
+      "pct": 0.77
      },
      {
       "symbol": "<alloc::vec::Vec<T> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<T,I>>::from_iter",
-      "pct": 0.65
+      "pct": 0.76
+     },
+     {
+      "symbol": "__list_del_entry_valid_or_report",
+      "pct": 0.71
+     },
+     {
+      "symbol": "sync_regs",
+      "pct": 0.51
      },
      {
       "symbol": "<alloc::vec::Vec<T> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<T,I>>::from_iter",
-      "pct": 0.46
-     },
-     {
-      "symbol": "<alloc::vec::Vec<T> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<T,I>>::from_iter",
-      "pct": 0.45
-     },
-     {
-      "symbol": "alloc::collections::btree::map::BTreeMap<K,V,A>::insert",
-      "pct": 0.26
-     },
-     {
-      "symbol": "<alloc::vec::Vec<T> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<T,I>>::from_iter",
-      "pct": 0.24
-     },
-     {
-      "symbol": "_int_realloc",
-      "pct": 0.24
+      "pct": 0.47
      }
     ],
     "hashing": [
      {
-      "symbol": "core::hash::BuildHasher::hash_one",
-      "pct": 0.73
+      "symbol": "hashbrown::map::HashMap<K,V,S,A>::insert",
+      "pct": 0.55
      },
      {
-      "symbol": "hashbrown::map::HashMap<K,V,S,A>::insert",
+      "symbol": "core::hash::BuildHasher::hash_one",
       "pct": 0.51
      },
      {
-      "symbol": "core::hash::BuildHasher::hash_one",
-      "pct": 0.1
+      "symbol": "_ZN9hashbrown3raw21RawTable$LT$T$C$A$GT$14reserve_rehash17hc23adf8514270923E.llvm.16043154551458697234",
+      "pct": 0.08
      },
      {
       "symbol": "core::hash::BuildHasher::hash_one",
-      "pct": 0.09
+      "pct": 0.07
      }
     ]
    },
    "unclassified": [
     {
      "symbol": "axiolid_mesh_boolean_boolmesh::csg::simplification::simplify_topology",
-     "pct": 3.3
+     "pct": 3.23
     },
     {
      "symbol": "axiolid_mesh_boolean_boolmesh::csg::triangulation::tri_halfs::tri_halfs_single",
-     "pct": 3.22
-    },
-    {
-     "symbol": "_raw_spin_lock",
-     "pct": 1.55
+     "pct": 3.16
     },
     {
      "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean45::append_whole_edges",
-     "pct": 1.36
-    },
-    {
-     "symbol": "clear_page_erms",
-     "pct": 1.18
-    },
-    {
-     "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean45::boolean45",
-     "pct": 1.14
+     "pct": 1.54
     },
     {
      "symbol": "axiolid_mesh_boolean_boolmesh::csg::compute_boolean",
-     "pct": 1.14
+     "pct": 1.12
+    },
+    {
+     "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean45::boolean45",
+     "pct": 1.06
     },
     {
      "symbol": "axiolid_mesh_boolean_boolmesh::csg::boolean03::kernel11::Kernel11::op",
-     "pct": 0.92
+     "pct": 1.01
+    },
+    {
+     "symbol": "core::ops::function::impls::<impl core::ops::function::FnMut<A> for &mut F>::call_mut",
+     "pct": 0.74
+    },
+    {
+     "symbol": "core::ops::function::impls::<impl core::ops::function::FnMut<A> for &mut F>::call_mut",
+     "pct": 0.57
     }
    ]
   },
   {
    "area": "audit",
-   "wall_ms": 668.6,
-   "sampled_pct": 99.7,
+   "wall_ms": 335.7,
+   "sampled_pct": 99.9,
    "categories": [
     {
-     "name": "sorting",
-     "pct": 84.32,
-     "reason": "comparison sort machinery"
-    },
-    {
      "name": "branch_bookkeeping",
-     "pct": 13.9,
+     "pct": 62.06,
      "reason": "structural bookkeeping and validation"
     },
     {
+     "name": "allocation",
+     "pct": 26.61,
+     "reason": "allocator, zeroing, bulk copy, page fault or kernel memory management"
+    },
+    {
      "name": "unclassified",
-     "pct": 1.3,
+     "pct": 10.48,
      "reason": "no rule matched"
     },
     {
      "name": "hashing",
-     "pct": 0.28,
+     "pct": 0.57,
      "reason": "hash table probe or hashing"
     },
     {
-     "name": "allocation",
+     "name": "pointer_chasing",
      "pct": 0.19,
-     "reason": "allocator, zeroing, bulk copy or page fault"
+     "reason": "tree or node traversal"
+    },
+    {
+     "name": "math",
+     "pct": 0.09,
+     "reason": "geometric or floating-point arithmetic"
     }
    ],
    "symbols": {
-    "sorting": [
-     {
-      "symbol": "core::slice::sort::unstable::quicksort::quicksort",
-      "pct": 52.76
-     },
-     {
-      "symbol": "core::slice::sort::shared::smallsort::small_sort_general",
-      "pct": 29.8
-     },
-     {
-      "symbol": "core::slice::sort::shared::pivot::median3_rec",
-      "pct": 1.77
-     }
-    ],
     "branch_bookkeeping": [
      {
+      "symbol": "<axiolid_mesh::audit::VecEdgeSink as axiolid_mesh::audit::EdgeSink>::summarize",
+      "pct": 39.18
+     },
+     {
       "symbol": "axiolid_mesh::audit::audit_mesh",
-      "pct": 7.62
+      "pct": 13.58
      },
      {
       "symbol": "<axiolid_mesh::audit::VecEdgeSink as axiolid_mesh::audit::EdgeSink>::record",
-      "pct": 3.33
+      "pct": 5.43
      },
      {
-      "symbol": "<axiolid_mesh::audit::VecEdgeSink as axiolid_mesh::audit::EdgeSink>::summarize",
-      "pct": 2.95
+      "symbol": "axiolid_mesh::audit::VecEdgeSink::try_new",
+      "pct": 3.68
+     },
+     {
+      "symbol": "count_memcg_events.constprop.0",
+      "pct": 0.09
+     },
+     {
+      "symbol": "arch_check_zapped_pte",
+      "pct": 0.09
+     }
+    ],
+    "allocation": [
+     {
+      "symbol": "clear_page_erms",
+      "pct": 8.52
+     },
+     {
+      "symbol": "asm_exc_page_fault",
+      "pct": 4.84
+     },
+     {
+      "symbol": "__list_del_entry_valid_or_report",
+      "pct": 3.03
+     },
+     {
+      "symbol": "sync_regs",
+      "pct": 2.84
+     },
+     {
+      "symbol": "_raw_spin_lock",
+      "pct": 2.4
+     },
+     {
+      "symbol": "unmap_page_range",
+      "pct": 1.42
+     },
+     {
+      "symbol": "__handle_mm_fault",
+      "pct": 0.73
+     },
+     {
+      "symbol": "get_page_from_freelist",
+      "pct": 0.54
+     },
+     {
+      "symbol": "lru_add",
+      "pct": 0.46
+     },
+     {
+      "symbol": "handle_mm_fault",
+      "pct": 0.28
+     },
+     {
+      "symbol": "__folio_mod_stat",
+      "pct": 0.27
+     },
+     {
+      "symbol": "__memset_avx512_unaligned_erms",
+      "pct": 0.27
      }
     ],
     "unclassified": [
      {
       "symbol": "<axiolid_mesh::triangle::TriMesh as axiolid_mesh::view::TriangleMeshView>::triangle",
-      "pct": 0.43
+      "pct": 0.98
      },
      {
-      "symbol": "perf_probe::sphere",
-      "pct": 0.19
+      "symbol": "do_anonymous_page",
+      "pct": 0.73
      },
      {
-      "symbol": "lru_gen_add_folio",
-      "pct": 0.19
-     },
-     {
-      "symbol": "sync_regs",
-      "pct": 0.12
-     },
-     {
-      "symbol": "_raw_spin_lock",
-      "pct": 0.1
-     },
-     {
-      "symbol": "next_uptodate_folio",
-      "pct": 0.07
-     },
-     {
-      "symbol": "__rcu_read_lock",
-      "pct": 0.05
-     },
-     {
-      "symbol": "folio_add_new_anon_rmap",
-      "pct": 0.05
+      "symbol": "__next_zones_zonelist",
+      "pct": 0.65
      },
      {
       "symbol": "_raw_spin_trylock",
-      "pct": 0.05
+      "pct": 0.54
+     },
+     {
+      "symbol": "__mod_memcg_lruvec_state",
+      "pct": 0.52
+     },
+     {
+      "symbol": "lru_gen_add_folio",
+      "pct": 0.46
+     },
+     {
+      "symbol": "perf_probe::sphere",
+      "pct": 0.41
+     },
+     {
+      "symbol": "__pte_offset_map",
+      "pct": 0.37
      },
      {
       "symbol": "error_entry",
-      "pct": 0.05
+      "pct": 0.36
+     },
+     {
+      "symbol": "__raw_callee_save___pv_queued_spin_unlock",
+      "pct": 0.36
+     },
+     {
+      "symbol": "mas_walk",
+      "pct": 0.36
+     },
+     {
+      "symbol": "folios_put_refs",
+      "pct": 0.36
      }
     ],
     "hashing": [
      {
       "symbol": "core::hash::BuildHasher::hash_one",
-      "pct": 0.2
+      "pct": 0.31
      },
      {
       "symbol": "_ZN9hashbrown3raw21RawTable$LT$T$C$A$GT$14reserve_rehash17hc23adf8514270923E.llvm.16043154551458697234",
-      "pct": 0.08
+      "pct": 0.26
      }
     ],
-    "allocation": [
+    "pointer_chasing": [
      {
-      "symbol": "asm_exc_page_fault",
-      "pct": 0.14
+      "symbol": "mas_pop_node",
+      "pct": 0.1
      },
      {
-      "symbol": "get_page_from_freelist",
-      "pct": 0.05
+      "symbol": "__mod_node_page_state",
+      "pct": 0.09
+     }
+    ],
+    "math": [
+     {
+      "symbol": "vm_normal_page",
+      "pct": 0.09
      }
     ]
    },
    "unclassified": [
     {
      "symbol": "<axiolid_mesh::triangle::TriMesh as axiolid_mesh::view::TriangleMeshView>::triangle",
-     "pct": 0.43
+     "pct": 0.98
     },
     {
-     "symbol": "perf_probe::sphere",
-     "pct": 0.19
+     "symbol": "do_anonymous_page",
+     "pct": 0.73
+    },
+    {
+     "symbol": "__next_zones_zonelist",
+     "pct": 0.65
+    },
+    {
+     "symbol": "_raw_spin_trylock",
+     "pct": 0.54
+    },
+    {
+     "symbol": "__mod_memcg_lruvec_state",
+     "pct": 0.52
     },
     {
      "symbol": "lru_gen_add_folio",
-     "pct": 0.19
+     "pct": 0.46
     },
     {
-     "symbol": "sync_regs",
-     "pct": 0.12
+     "symbol": "perf_probe::sphere",
+     "pct": 0.41
     },
     {
-     "symbol": "_raw_spin_lock",
-     "pct": 0.1
-    },
-    {
-     "symbol": "next_uptodate_folio",
-     "pct": 0.07
-    },
-    {
-     "symbol": "__rcu_read_lock",
-     "pct": 0.05
-    },
-    {
-     "symbol": "folio_add_new_anon_rmap",
-     "pct": 0.05
+     "symbol": "__pte_offset_map",
+     "pct": 0.37
     }
    ]
   },
   {
    "area": "measure",
-   "wall_ms": 1325.3,
-   "sampled_pct": 99.6,
+   "wall_ms": 706.6,
+   "sampled_pct": 97.8,
    "categories": [
     {
-     "name": "sorting",
-     "pct": 80.66,
-     "reason": "comparison sort machinery"
-    },
-    {
      "name": "branch_bookkeeping",
-     "pct": 13.3,
+     "pct": 63.53,
      "reason": "structural bookkeeping and validation"
     },
     {
-     "name": "math",
-     "pct": 3.14,
-     "reason": "geometric or floating-point arithmetic"
+     "name": "allocation",
+     "pct": 20.92,
+     "reason": "allocator, zeroing, bulk copy, page fault or kernel memory management"
     },
     {
      "name": "unclassified",
-     "pct": 2.53,
+     "pct": 9.65,
      "reason": "no rule matched"
     },
     {
+     "name": "math",
+     "pct": 5.22,
+     "reason": "geometric or floating-point arithmetic"
+    },
+    {
      "name": "hashing",
-     "pct": 0.29,
+     "pct": 0.48,
      "reason": "hash table probe or hashing"
     },
     {
-     "name": "allocation",
-     "pct": 0.07,
-     "reason": "allocator, zeroing, bulk copy or page fault"
+     "name": "pointer_chasing",
+     "pct": 0.19,
+     "reason": "tree or node traversal"
     }
    ],
    "symbols": {
-    "sorting": [
-     {
-      "symbol": "core::slice::sort::unstable::quicksort::quicksort",
-      "pct": 50.86
-     },
-     {
-      "symbol": "core::slice::sort::shared::smallsort::small_sort_general",
-      "pct": 27.89
-     },
-     {
-      "symbol": "core::slice::sort::shared::pivot::median3_rec",
-      "pct": 1.91
-     }
-    ],
     "branch_bookkeeping": [
      {
+      "symbol": "<axiolid_mesh::audit::VecEdgeSink as axiolid_mesh::audit::EdgeSink>::summarize",
+      "pct": 39.88
+     },
+     {
       "symbol": "axiolid_mesh::audit::audit_mesh",
-      "pct": 7.61
+      "pct": 13.71
      },
      {
       "symbol": "<axiolid_mesh::audit::VecEdgeSink as axiolid_mesh::audit::EdgeSink>::record",
-      "pct": 2.81
+      "pct": 4.99
      },
      {
-      "symbol": "<axiolid_mesh::audit::VecEdgeSink as axiolid_mesh::audit::EdgeSink>::summarize",
-      "pct": 2.8
+      "symbol": "axiolid_mesh::audit::VecEdgeSink::try_new",
+      "pct": 4.62
      },
      {
-      "symbol": "__cgroup_account_cputime_field",
-      "pct": 0.07
+      "symbol": "__count_memcg_events",
+      "pct": 0.24
+     },
+     {
+      "symbol": "count_memcg_events.constprop.0",
+      "pct": 0.09
+     }
+    ],
+    "allocation": [
+     {
+      "symbol": "clear_page_erms",
+      "pct": 10.09
+     },
+     {
+      "symbol": "asm_exc_page_fault",
+      "pct": 3.84
+     },
+     {
+      "symbol": "_raw_spin_lock",
+      "pct": 1.72
+     },
+     {
+      "symbol": "sync_regs",
+      "pct": 1.57
+     },
+     {
+      "symbol": "__list_del_entry_valid_or_report",
+      "pct": 1.39
+     },
+     {
+      "symbol": "unmap_page_range",
+      "pct": 0.88
+     },
+     {
+      "symbol": "__handle_mm_fault",
+      "pct": 0.47
+     },
+     {
+      "symbol": "get_page_from_freelist",
+      "pct": 0.25
+     },
+     {
+      "symbol": "__folio_batch_add_and_move",
+      "pct": 0.14
+     },
+     {
+      "symbol": "free_unref_folios",
+      "pct": 0.13
+     },
+     {
+      "symbol": "handle_mm_fault",
+      "pct": 0.09
+     },
+     {
+      "symbol": "free_tail_page_prepare",
+      "pct": 0.09
      }
     ],
     "math": [
      {
       "symbol": "axiolid_measure::mesh::second_moments",
-      "pct": 1.94
+      "pct": 3.1
      },
      {
       "symbol": "axiolid_measure::mesh::volume_properties",
-      "pct": 1.21
+      "pct": 2.13
      }
     ],
     "unclassified": [
      {
       "symbol": "axiolid_measure::mesh::surface_properties",
-      "pct": 1.44
+      "pct": 2.36
      },
      {
       "symbol": "<axiolid_mesh::triangle::TriMesh as axiolid_mesh::view::TriangleMeshView>::triangle",
-      "pct": 1.0
+      "pct": 1.76
      },
      {
-      "symbol": "clear_page_erms",
-      "pct": 0.09
+      "symbol": "do_anonymous_page",
+      "pct": 0.4
+     },
+     {
+      "symbol": "prep_new_page",
+      "pct": 0.34
+     },
+     {
+      "symbol": "__mod_memcg_lruvec_state",
+      "pct": 0.34
+     },
+     {
+      "symbol": "lru_gen_del_folio.constprop.0",
+      "pct": 0.32
+     },
+     {
+      "symbol": "__rcu_read_lock",
+      "pct": 0.29
+     },
+     {
+      "symbol": "get_mem_cgroup_from_mm",
+      "pct": 0.25
+     },
+     {
+      "symbol": "__raw_callee_save___pv_queued_spin_unlock",
+      "pct": 0.25
+     },
+     {
+      "symbol": "__alloc_pages_noprof",
+      "pct": 0.25
+     },
+     {
+      "symbol": "lru_gen_add_folio",
+      "pct": 0.25
+     },
+     {
+      "symbol": "__rcu_read_unlock",
+      "pct": 0.24
      }
     ],
     "hashing": [
      {
       "symbol": "core::hash::BuildHasher::hash_one",
-      "pct": 0.22
+      "pct": 0.3
      },
      {
       "symbol": "_ZN9hashbrown3raw21RawTable$LT$T$C$A$GT$14reserve_rehash17hc23adf8514270923E.llvm.16043154551458697234",
-      "pct": 0.07
+      "pct": 0.18
      }
     ],
-    "allocation": [
+    "pointer_chasing": [
      {
-      "symbol": "asm_exc_page_fault",
-      "pct": 0.07
+      "symbol": "policy_nodemask",
+      "pct": 0.1
+     },
+     {
+      "symbol": "__mod_node_page_state",
+      "pct": 0.09
      }
     ]
    },
    "unclassified": [
     {
      "symbol": "axiolid_measure::mesh::surface_properties",
-     "pct": 1.43
+     "pct": 2.31
     },
     {
      "symbol": "<axiolid_mesh::triangle::TriMesh as axiolid_mesh::view::TriangleMeshView>::triangle",
-     "pct": 1.0
+     "pct": 1.72
     },
     {
-     "symbol": "clear_page_erms",
-     "pct": 0.09
-    }
-   ]
-  },
-  {
-   "area": "levelset",
-   "wall_ms": 96.9,
-   "sampled_pct": 99.9,
-   "categories": [
-    {
-     "name": "pointer_chasing",
-     "pct": 62.81,
-     "reason": "tree or node traversal"
+     "symbol": "do_anonymous_page",
+     "pct": 0.39
     },
     {
-     "name": "allocation",
-     "pct": 19.82,
-     "reason": "allocator, zeroing, bulk copy or page fault"
-    },
-    {
-     "name": "branch_bookkeeping",
-     "pct": 10.77,
-     "reason": "topology construction and index bookkeeping"
-    },
-    {
-     "name": "math",
-     "pct": 3.3,
-     "reason": "geometric or floating-point arithmetic"
-    },
-    {
-     "name": "unclassified",
-     "pct": 3.29,
-     "reason": "no rule matched"
-    }
-   ],
-   "symbols": {
-    "pointer_chasing": [
-     {
-      "symbol": "axiolid_levelset::emit_tetrahedron::_$u7b$$u7b$closure$u7d$$u7d$::h58525a04b584b452",
-      "pct": 36.01
-     },
-     {
-      "symbol": "axiolid_levelset::emit_tetrahedron",
-      "pct": 26.67
-     },
-     {
-      "symbol": "vma_interval_tree_insert",
-      "pct": 0.12
-     }
-    ],
-    "branch_bookkeeping": [
-     {
-      "symbol": "axiolid_levelset::level_set",
-      "pct": 10.77
-     }
-    ],
-    "allocation": [
-     {
-      "symbol": "alloc::collections::btree::map::BTreeMap<K,V,A>::insert",
-      "pct": 7.93
-     },
-     {
-      "symbol": "alloc::collections::btree::map::BTreeMap<K,V,A>::insert",
-      "pct": 7.27
-     },
-     {
-      "symbol": "__memmove_avx512_unaligned_erms",
-      "pct": 1.65
-     },
-     {
-      "symbol": "<alloc::collections::btree::map::BTreeMap<K,V,A> as core::ops::drop::Drop>::drop",
-      "pct": 1.32
-     },
-     {
-      "symbol": "asm_exc_page_fault",
-      "pct": 0.66
-     },
-     {
-      "symbol": "malloc",
-      "pct": 0.33
-     },
-     {
-      "symbol": "alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut,K,V,alloc::collections::btree::node::marker::Leaf>,alloc::collections::btree::node::marker::Edge>::insert_recursing",
-      "pct": 0.33
-     },
-     {
-      "symbol": "alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut,K,V,alloc::collections::btree::node::marker::Leaf>,alloc::collections::btree::node::marker::Edge>::insert_recursing",
-      "pct": 0.33
-     }
-    ],
-    "math": [
-     {
-      "symbol": "axiolid_levelset::push_oriented",
-      "pct": 3.3
-     }
-    ],
-    "unclassified": [
-     {
-      "symbol": "clear_page_erms",
-      "pct": 0.89
-     },
-     {
-      "symbol": "arch_exit_to_user_mode_prepare.isra.0",
-      "pct": 0.33
-     },
-     {
-      "symbol": "_raw_spin_lock",
-      "pct": 0.33
-     },
-     {
-      "symbol": "lru_gen_add_folio",
-      "pct": 0.33
-     },
-     {
-      "symbol": "__mod_memcg_lruvec_state",
-      "pct": 0.33
-     },
-     {
-      "symbol": "__next_zones_zonelist",
-      "pct": 0.33
-     },
-     {
-      "symbol": "lru_add",
-      "pct": 0.24
-     },
-     {
-      "symbol": "next_uptodate_folio",
-      "pct": 0.19
-     },
-     {
-      "symbol": "log2f@@GLIBC_2.27",
-      "pct": 0.16
-     },
-     {
-      "symbol": "try_charge_memcg",
-      "pct": 0.09
-     },
-     {
-      "symbol": "strlen",
-      "pct": 0.07
-     }
-    ]
-   },
-   "unclassified": [
-    {
-     "symbol": "clear_page_erms",
-     "pct": 0.89
-    },
-    {
-     "symbol": "arch_exit_to_user_mode_prepare.isra.0",
-     "pct": 0.33
-    },
-    {
-     "symbol": "_raw_spin_lock",
-     "pct": 0.33
-    },
-    {
-     "symbol": "lru_gen_add_folio",
+     "symbol": "prep_new_page",
      "pct": 0.33
     },
     {
@@ -773,37 +782,187 @@
      "pct": 0.33
     },
     {
-     "symbol": "__next_zones_zonelist",
-     "pct": 0.33
+     "symbol": "lru_gen_del_folio.constprop.0",
+     "pct": 0.31
     },
     {
-     "symbol": "lru_add",
+     "symbol": "__rcu_read_lock",
+     "pct": 0.28
+    },
+    {
+     "symbol": "get_mem_cgroup_from_mm",
      "pct": 0.24
+    }
+   ]
+  },
+  {
+   "area": "levelset",
+   "wall_ms": 83.6,
+   "sampled_pct": 99.9,
+   "categories": [
+    {
+     "name": "pointer_chasing",
+     "pct": 59.93,
+     "reason": "BTreeMap or spatial-index traversal (verified by reading the source)"
+    },
+    {
+     "name": "allocation",
+     "pct": 24.78,
+     "reason": "allocator, zeroing, bulk copy, page fault or kernel memory management"
+    },
+    {
+     "name": "branch_bookkeeping",
+     "pct": 12.52,
+     "reason": "topology construction and index bookkeeping"
+    },
+    {
+     "name": "math",
+     "pct": 1.49,
+     "reason": "geometric or floating-point arithmetic"
+    },
+    {
+     "name": "unclassified",
+     "pct": 1.27,
+     "reason": "no rule matched"
+    }
+   ],
+   "symbols": {
+    "pointer_chasing": [
+     {
+      "symbol": "axiolid_levelset::emit_tetrahedron::_$u7b$$u7b$closure$u7d$$u7d$::h58525a04b584b452",
+      "pct": 33.55
+     },
+     {
+      "symbol": "axiolid_levelset::emit_tetrahedron",
+      "pct": 26.38
+     }
+    ],
+    "branch_bookkeeping": [
+     {
+      "symbol": "axiolid_levelset::level_set",
+      "pct": 12.52
+     }
+    ],
+    "allocation": [
+     {
+      "symbol": "alloc::collections::btree::map::BTreeMap<K,V,A>::insert",
+      "pct": 8.71
+     },
+     {
+      "symbol": "alloc::collections::btree::map::BTreeMap<K,V,A>::insert",
+      "pct": 7.58
+     },
+     {
+      "symbol": "__memmove_avx512_unaligned_erms",
+      "pct": 1.89
+     },
+     {
+      "symbol": "asm_exc_page_fault",
+      "pct": 1.01
+     },
+     {
+      "symbol": "clear_page_erms",
+      "pct": 0.95
+     },
+     {
+      "symbol": "_int_free_create_chunk",
+      "pct": 0.78
+     },
+     {
+      "symbol": "alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut,K,V,alloc::collections::btree::node::marker::Leaf>,alloc::collections::btree::node::marker::Edge>::insert_recursing",
+      "pct": 0.75
+     },
+     {
+      "symbol": "_raw_spin_lock",
+      "pct": 0.63
+     },
+     {
+      "symbol": "__list_del_entry_valid_or_report",
+      "pct": 0.62
+     },
+     {
+      "symbol": "<alloc::collections::btree::map::BTreeMap<K,V,A> as core::ops::drop::Drop>::drop",
+      "pct": 0.38
+     },
+     {
+      "symbol": "__memset_avx512_unaligned_erms",
+      "pct": 0.38
+     },
+     {
+      "symbol": "_int_malloc",
+      "pct": 0.38
+     }
+    ],
+    "math": [
+     {
+      "symbol": "axiolid_levelset::push_oriented",
+      "pct": 1.49
+     }
+    ],
+    "unclassified": [
+     {
+      "symbol": "_raw_spin_trylock",
+      "pct": 0.38
+     },
+     {
+      "symbol": "prep_new_page",
+      "pct": 0.38
+     },
+     {
+      "symbol": "next_uptodate_folio",
+      "pct": 0.29
+     },
+     {
+      "symbol": "mas_find",
+      "pct": 0.15
+     },
+     {
+      "symbol": "update_active.constprop.0",
+      "pct": 0.07
+     }
+    ]
+   },
+   "unclassified": [
+    {
+     "symbol": "_raw_spin_trylock",
+     "pct": 0.38
+    },
+    {
+     "symbol": "prep_new_page",
+     "pct": 0.38
     },
     {
      "symbol": "next_uptodate_folio",
-     "pct": 0.19
+     "pct": 0.29
+    },
+    {
+     "symbol": "mas_find",
+     "pct": 0.15
+    },
+    {
+     "symbol": "update_active.constprop.0",
+     "pct": 0.07
     }
    ]
   },
   {
    "area": "inspect",
-   "wall_ms": 1207.3,
+   "wall_ms": 1053.5,
    "sampled_pct": 99.8,
    "categories": [
     {
      "name": "math",
-     "pct": 99.69,
+     "pct": 99.64,
      "reason": "geometric or floating-point arithmetic"
     },
     {
      "name": "hashing",
-     "pct": 0.16,
+     "pct": 0.22,
      "reason": "hash table probe or hashing"
     },
     {
      "name": "unclassified",
-     "pct": 0.15,
+     "pct": 0.14,
      "reason": "no rule matched"
     }
    ],
@@ -811,74 +970,78 @@
     "math": [
      {
       "symbol": "_ZN15axiolid_inspect11containment13crossing_sign17h79c1c7dc105a6a71E.llvm.8539585134798147946",
-      "pct": 48.0
+      "pct": 48.2
      },
      {
       "symbol": "axiolid_predicates::orient3::orient3d_filter",
-      "pct": 44.15
+      "pct": 44.49
      },
      {
       "symbol": "axiolid_predicates::orient3::orient3d",
-      "pct": 5.03
+      "pct": 5.01
      },
      {
       "symbol": "axiolid_inspect::containment::winding_number_along",
-      "pct": 2.52
-     }
-    ],
-    "hashing": [
-     {
-      "symbol": "core::hash::BuildHasher::hash_one",
-      "pct": 0.16
+      "pct": 1.93
      }
     ],
     "unclassified": [
      {
       "symbol": "perf_probe::sphere",
-      "pct": 0.15
+      "pct": 0.14
+     }
+    ],
+    "hashing": [
+     {
+      "symbol": "core::hash::BuildHasher::hash_one",
+      "pct": 0.14
+     },
+     {
+      "symbol": "_ZN9hashbrown3raw21RawTable$LT$T$C$A$GT$14reserve_rehash17hc23adf8514270923E.llvm.16043154551458697234",
+      "pct": 0.08
      }
     ]
    },
    "unclassified": [
     {
      "symbol": "perf_probe::sphere",
-     "pct": 0.15
+     "pct": 0.14
     }
    ]
   },
   {
    "area": "heal",
-   "wall_ms": 1148.1,
-   "sampled_pct": 99.3,
+   "wall_ms": 954.4,
+   "sampled_pct": 99.4,
    "categories": [
     {
      "name": "pointer_chasing",
-     "pct": 41.81,
+     "pct": 44.15,
      "reason": "tree or node traversal"
     },
     {
      "name": "sorting",
-     "pct": 36.91,
+     "pct": 34.23,
      "reason": "comparison sort machinery"
     },
     {
      "name": "math",
-     "pct": 12.2,
+     "pct": 11.78,
      "reason": "geometric or floating-point arithmetic"
     },
     {
      "name": "allocation",
-     "pct": 6.55,
-     "reason": "allocator, zeroing, bulk copy or page fault"
+     "pct": 5.67,
+     "reason": "allocator, zeroing, bulk copy, page fault or kernel memory management"
     },
     {
      "name": "unclassified",
-     "pct": 1.93,
+     "pct": 2.36,
      "reason": "no rule matched"
     },
     {
      "name": "branch_bookkeeping",
-     "pct": 0.6,
+     "pct": 1.8,
      "reason": "structural bookkeeping and validation"
     }
    ],
@@ -886,216 +1049,212 @@
     "pointer_chasing": [
      {
       "symbol": "<axiolid_spatial::bvh::Bvh<K> as axiolid_spatial::index::SpatialIndex<K>>::visit_aabb",
-      "pct": 37.65
+      "pct": 39.46
      },
      {
-      "symbol": "_ZN15axiolid_spatial3bvh12Bvh$LT$K$GT$10build_node17ha6fdcec22af15814E.llvm.2223138948684268259",
-      "pct": 4.06
-     },
-     {
-      "symbol": "axiolid_spatial::bvh::Bvh<K>::build",
-      "pct": 0.1
+      "symbol": "_ZN15axiolid_spatial3bvh12Bvh$LT$K$GT$10build_node17ha6fdcec22af15814E.llvm.8291319102784636575",
+      "pct": 4.69
      }
     ],
     "sorting": [
      {
       "symbol": "core::slice::sort::unstable::quicksort::quicksort",
-      "pct": 14.76
+      "pct": 15.08
      },
      {
       "symbol": "core::slice::_$LT$impl$u20$$u5b$T$u5d$$GT$::sort_unstable_by::_$u7b$$u7b$closure$u7d$$u7d$::he56d26f9538c5d00",
-      "pct": 8.11
+      "pct": 7.52
      },
      {
       "symbol": "core::slice::sort::shared::smallsort::small_sort_network",
-      "pct": 3.58
+      "pct": 4.08
      },
      {
       "symbol": "core::slice::sort::shared::smallsort::insertion_sort_shift_left",
-      "pct": 2.93
+      "pct": 3.03
      },
      {
       "symbol": "core::slice::sort::shared::smallsort::insertion_sort_shift_left",
-      "pct": 2.63
-     },
-     {
-      "symbol": "core::slice::sort::unstable::quicksort::quicksort",
-      "pct": 1.86
-     },
-     {
-      "symbol": "core::slice::sort::shared::smallsort::small_sort_general",
-      "pct": 1.26
+      "pct": 2.38
      },
      {
       "symbol": "core::slice::_$LT$impl$u20$$u5b$T$u5d$$GT$::sort_unstable_by::_$u7b$$u7b$closure$u7d$$u7d$::he56d26f9538c5d00",
-      "pct": 1.19
+      "pct": 1.55
      },
      {
       "symbol": "core::slice::sort::shared::pivot::median3_rec",
-      "pct": 0.51
+      "pct": 0.48
      },
      {
-      "symbol": "core::slice::sort::shared::pivot::median3_rec",
-      "pct": 0.08
+      "symbol": "core::slice::sort::unstable::ipnsort",
+      "pct": 0.1
      }
     ],
     "math": [
      {
       "symbol": "axiolid_heal::intersect::self_intersections::_$u7b$$u7b$closure$u7d$$u7d$::h92e7e408223335c0",
-      "pct": 8.31
+      "pct": 7.68
      },
      {
       "symbol": "axiolid_heal::intersect::self_intersections",
-      "pct": 2.12
+      "pct": 2.52
      },
      {
       "symbol": "axiolid_heal::intersect::share_a_vertex",
-      "pct": 1.46
+      "pct": 1.49
      },
      {
       "symbol": "axiolid_predicates::orient3::orient3d_filter",
-      "pct": 0.22
+      "pct": 0.1
+     }
+    ],
+    "unclassified": [
+     {
+      "symbol": "<axiolid_mesh::triangle::TriMesh as axiolid_mesh::view::TriangleMeshView>::triangle",
+      "pct": 1.62
      },
      {
-      "symbol": "axiolid_heal::intersect::triangles_intersect",
-      "pct": 0.08
+      "symbol": "unlink_chunk.isra.0",
+      "pct": 0.51
+     },
+     {
+      "symbol": "_RNvCsGIExRX8pES_7___rustc14___rust_dealloc",
+      "pct": 0.1
+     },
+     {
+      "symbol": "_RNvCsGIExRX8pES_7___rustc35___rust_no_alloc_shim_is_unstable_v2",
+      "pct": 0.07
+     },
+     {
+      "symbol": "native_write_msr",
+      "pct": 0.06
      }
     ],
     "allocation": [
      {
       "symbol": "_int_malloc",
-      "pct": 1.4
+      "pct": 1.34
      },
      {
       "symbol": "_int_realloc",
-      "pct": 0.64
-     },
-     {
-      "symbol": "cfree@GLIBC_2.2.5",
-      "pct": 0.61
-     },
-     {
-      "symbol": "_int_free_create_chunk",
-      "pct": 0.56
+      "pct": 0.75
      },
      {
       "symbol": "realloc",
-      "pct": 0.53
+      "pct": 0.54
+     },
+     {
+      "symbol": "cfree@GLIBC_2.2.5",
+      "pct": 0.47
      },
      {
       "symbol": "_int_free_chunk",
       "pct": 0.44
      },
      {
-      "symbol": "_ZN5alloc7raw_vec20RawVecInner$LT$A$GT$11finish_grow17h1f550abfd399c70aE.llvm.17964989687762666399",
-      "pct": 0.44
-     },
-     {
-      "symbol": "_RNvCsGIExRX8pES_7___rustc13___rdl_realloc",
-      "pct": 0.36
-     },
-     {
       "symbol": "__memmove_avx512_unaligned_erms",
       "pct": 0.36
+     },
+     {
+      "symbol": "_ZN5alloc7raw_vec20RawVecInner$LT$A$GT$11finish_grow17h1f550abfd399c70aE.llvm.530695879060284428",
+      "pct": 0.31
      },
      {
       "symbol": "<alloc::vec::into_iter::IntoIter<T,A> as core::iter::traits::iterator::Iterator>::try_fold",
       "pct": 0.24
      },
      {
+      "symbol": "_int_free_create_chunk",
+      "pct": 0.24
+     },
+     {
+      "symbol": "malloc",
+      "pct": 0.24
+     },
+     {
+      "symbol": "malloc_consolidate",
+      "pct": 0.2
+     },
+     {
       "symbol": "_int_free_merge_chunk",
-      "pct": 0.22
-     },
-     {
-      "symbol": "alloc::raw_vec::RawVec<T,A>::grow_one",
-      "pct": 0.22
-     }
-    ],
-    "unclassified": [
-     {
-      "symbol": "<axiolid_mesh::triangle::TriMesh as axiolid_mesh::view::TriangleMeshView>::triangle",
-      "pct": 1.23
-     },
-     {
-      "symbol": "unlink_chunk.isra.0",
-      "pct": 0.58
-     },
-     {
-      "symbol": "_RNvCsGIExRX8pES_7___rustc14___rust_dealloc",
-      "pct": 0.06
-     },
-     {
-      "symbol": "alloc_perturb",
-      "pct": 0.06
+      "pct": 0.1
      }
     ],
     "branch_bookkeeping": [
      {
-      "symbol": "axiolid_mesh::audit::audit_mesh",
-      "pct": 0.39
+      "symbol": "<axiolid_mesh::audit::VecEdgeSink as axiolid_mesh::audit::EdgeSink>::summarize",
+      "pct": 1.13
      },
      {
-      "symbol": "<axiolid_mesh::audit::VecEdgeSink as axiolid_mesh::audit::EdgeSink>::summarize",
-      "pct": 0.15
+      "symbol": "axiolid_mesh::audit::audit_mesh",
+      "pct": 0.27
      },
      {
       "symbol": "<axiolid_mesh::audit::VecEdgeSink as axiolid_mesh::audit::EdgeSink>::record",
-      "pct": 0.06
+      "pct": 0.2
+     },
+     {
+      "symbol": "axiolid_mesh::audit::VecEdgeSink::try_new",
+      "pct": 0.2
      }
     ]
    },
    "unclassified": [
     {
      "symbol": "<axiolid_mesh::triangle::TriMesh as axiolid_mesh::view::TriangleMeshView>::triangle",
-     "pct": 1.22
+     "pct": 1.61
     },
     {
      "symbol": "unlink_chunk.isra.0",
-     "pct": 0.58
+     "pct": 0.51
     },
     {
      "symbol": "_RNvCsGIExRX8pES_7___rustc14___rust_dealloc",
-     "pct": 0.06
+     "pct": 0.1
     },
     {
-     "symbol": "alloc_perturb",
+     "symbol": "_RNvCsGIExRX8pES_7___rustc35___rust_no_alloc_shim_is_unstable_v2",
+     "pct": 0.07
+    },
+    {
+     "symbol": "native_write_msr",
      "pct": 0.06
     }
    ]
   },
   {
    "area": "genus",
-   "wall_ms": 2554.5,
-   "sampled_pct": 98.8,
+   "wall_ms": 2125.8,
+   "sampled_pct": 99.6,
    "categories": [
     {
      "name": "branch_bookkeeping",
-     "pct": 37.09,
+     "pct": 37.06,
      "reason": "structural bookkeeping and validation"
     },
     {
      "name": "pointer_chasing",
-     "pct": 28.11,
+     "pct": 28.24,
      "reason": "tree or node traversal"
     },
     {
      "name": "allocation",
-     "pct": 26.55,
-     "reason": "allocator, zeroing, bulk copy or page fault"
+     "pct": 26.13,
+     "reason": "allocator, zeroing, bulk copy, page fault or kernel memory management"
     },
     {
      "name": "unclassified",
-     "pct": 7.37,
+     "pct": 7.58,
      "reason": "no rule matched"
     },
     {
      "name": "sorting",
-     "pct": 0.8,
+     "pct": 0.92,
      "reason": "comparison sort machinery"
     },
     {
      "name": "hashing",
-     "pct": 0.09,
+     "pct": 0.07,
      "reason": "hash table probe or hashing"
     }
    ],
@@ -1103,144 +1262,132 @@
     "branch_bookkeeping": [
      {
       "symbol": "axiolid_mesh::adjacency::EdgeAdjacency::face_count",
-      "pct": 34.44
+      "pct": 34.16
      },
      {
       "symbol": "axiolid_mesh::adjacency::EdgeAdjacency::euler_characteristic",
-      "pct": 2.07
+      "pct": 2.31
      },
      {
       "symbol": "axiolid_mesh::component::component_count",
-      "pct": 0.58
+      "pct": 0.59
      }
     ],
     "pointer_chasing": [
      {
       "symbol": "axiolid_mesh::adjacency::EdgeAdjacency::build",
-      "pct": 27.18
+      "pct": 27.17
      },
      {
       "symbol": "_ZN5alloc11collections5btree3map25IntoIter$LT$K$C$V$C$A$GT$10dying_next17h3be1caff089d82a5E.llvm.6479711327114560492",
-      "pct": 0.78
-     },
-     {
-      "symbol": "tcp_rbtree_insert",
-      "pct": 0.14
+      "pct": 1.06
      }
     ],
     "allocation": [
      {
       "symbol": "_int_malloc",
-      "pct": 6.79
+      "pct": 7.74
      },
      {
       "symbol": "_int_free_chunk",
-      "pct": 3.99
+      "pct": 3.02
      },
      {
       "symbol": "cfree@GLIBC_2.2.5",
-      "pct": 3.73
+      "pct": 2.71
      },
      {
       "symbol": "malloc_consolidate",
-      "pct": 2.2
-     },
-     {
-      "symbol": "__memmove_avx512_unaligned_erms",
-      "pct": 2.11
+      "pct": 2.4
      },
      {
       "symbol": "alloc::collections::btree::map::entry::Entry<K,V,A>::or_default",
-      "pct": 1.79
+      "pct": 2.16
+     },
+     {
+      "symbol": "__memmove_avx512_unaligned_erms",
+      "pct": 2.12
      },
      {
       "symbol": "alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut,K,V,alloc::collections::btree::node::marker::Leaf>,alloc::collections::btree::node::marker::Edge>::insert_recursing",
-      "pct": 1.65
+      "pct": 1.73
      },
      {
       "symbol": "malloc",
-      "pct": 1.11
+      "pct": 0.96
      },
      {
       "symbol": "alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut,K,V,alloc::collections::btree::node::marker::Leaf>,alloc::collections::btree::node::marker::Edge>::insert_recursing",
-      "pct": 1.06
+      "pct": 0.93
      },
      {
       "symbol": "alloc::collections::btree::map::BTreeMap<K,V,A>::insert",
-      "pct": 0.62
+      "pct": 0.61
      },
      {
-      "symbol": "_ZN5alloc7raw_vec20RawVecInner$LT$A$GT$11finish_grow17h1f550abfd399c70aE.llvm.17964989687762666399",
-      "pct": 0.53
+      "symbol": "_ZN5alloc7raw_vec20RawVecInner$LT$A$GT$11finish_grow17h1f550abfd399c70aE.llvm.530695879060284428",
+      "pct": 0.5
      },
      {
       "symbol": "<alloc::collections::btree::map::BTreeMap<K,V,A> as core::ops::drop::Drop>::drop",
-      "pct": 0.35
+      "pct": 0.36
      }
     ],
     "unclassified": [
      {
       "symbol": "axiolid_inspect::genus::genus",
-      "pct": 4.61
+      "pct": 4.83
      },
      {
       "symbol": "unlink_chunk.isra.0",
-      "pct": 2.44
+      "pct": 2.53
      },
      {
-      "symbol": "sync_regs",
-      "pct": 0.11
-     },
-     {
-      "symbol": "_RNvCsGIExRX8pES_7___rustc11___rdl_alloc",
-      "pct": 0.09
-     },
-     {
-      "symbol": "_RNvCsGIExRX8pES_7___rustc35___rust_no_alloc_shim_is_unstable_v2",
-      "pct": 0.07
+      "symbol": "_RNvCsGIExRX8pES_7___rustc14___rust_dealloc",
+      "pct": 0.1
      },
      {
       "symbol": "perf_probe::sphere",
-      "pct": 0.05
+      "pct": 0.06
+     },
+     {
+      "symbol": "_RNvCsGIExRX8pES_7___rustc11___rdl_alloc",
+      "pct": 0.06
      }
     ],
     "sorting": [
      {
       "symbol": "axiolid_mesh::component::partition_of",
-      "pct": 0.8
+      "pct": 0.92
      }
     ],
     "hashing": [
      {
       "symbol": "core::hash::BuildHasher::hash_one",
-      "pct": 0.09
+      "pct": 0.07
      }
     ]
    },
    "unclassified": [
     {
      "symbol": "axiolid_inspect::genus::genus",
-     "pct": 4.55
+     "pct": 4.81
     },
     {
      "symbol": "unlink_chunk.isra.0",
-     "pct": 2.41
+     "pct": 2.52
     },
     {
-     "symbol": "sync_regs",
-     "pct": 0.11
-    },
-    {
-     "symbol": "_RNvCsGIExRX8pES_7___rustc11___rdl_alloc",
-     "pct": 0.09
-    },
-    {
-     "symbol": "_RNvCsGIExRX8pES_7___rustc35___rust_no_alloc_shim_is_unstable_v2",
-     "pct": 0.07
+     "symbol": "_RNvCsGIExRX8pES_7___rustc14___rust_dealloc",
+     "pct": 0.1
     },
     {
      "symbol": "perf_probe::sphere",
-     "pct": 0.05
+     "pct": 0.06
+    },
+    {
+     "symbol": "_RNvCsGIExRX8pES_7___rustc11___rdl_alloc",
+     "pct": 0.06
     }
    ]
   }
@@ -1251,41 +1398,41 @@
    "points": [
     {
      "threads": 1,
-     "ms": 707.6,
+     "ms": 608.4,
      "speedup": 1.0,
      "efficiency": 100.0,
      "cpu_ratio": 1.0
     },
     {
      "threads": 2,
-     "ms": 693.2,
+     "ms": 596.1,
      "speedup": 1.02,
      "efficiency": 51.0,
      "cpu_ratio": 1.0
     },
     {
      "threads": 4,
-     "ms": 681.8,
-     "speedup": 1.04,
-     "efficiency": 26.0,
+     "ms": 615.5,
+     "speedup": 0.99,
+     "efficiency": 24.8,
      "cpu_ratio": 1.0
     },
     {
      "threads": 8,
-     "ms": 673.5,
-     "speedup": 1.05,
-     "efficiency": 13.1,
+     "ms": 622.7,
+     "speedup": 0.98,
+     "efficiency": 12.2,
      "cpu_ratio": 1.0
     },
     {
      "threads": 16,
-     "ms": 732.1,
-     "speedup": 0.97,
-     "efficiency": 6.1,
+     "ms": 572.0,
+     "speedup": 1.06,
+     "efficiency": 6.6,
      "cpu_ratio": 1.0
     }
    ],
-   "peak_speedup": 1.05,
+   "peak_speedup": 1.06,
    "verdict": "does not scale",
    "cpu_ratio_at_max": 1.0,
    "evidence": "work is serial: CPU time never exceeded wall time"
@@ -1295,37 +1442,81 @@
    "points": [
     {
      "threads": 1,
-     "ms": 639.4,
+     "ms": 376.7,
      "speedup": 1.0,
      "efficiency": 100.0,
      "cpu_ratio": 1.0
     },
     {
      "threads": 2,
-     "ms": 656.0,
-     "speedup": 0.97,
-     "efficiency": 48.5,
+     "ms": 374.1,
+     "speedup": 1.01,
+     "efficiency": 50.5,
      "cpu_ratio": 1.0
     },
     {
      "threads": 4,
-     "ms": 636.5,
-     "speedup": 1.0,
-     "efficiency": 25.0,
+     "ms": 363.0,
+     "speedup": 1.04,
+     "efficiency": 26.0,
      "cpu_ratio": 1.0
     },
     {
      "threads": 8,
-     "ms": 657.3,
-     "speedup": 0.97,
-     "efficiency": 12.1,
+     "ms": 354.6,
+     "speedup": 1.06,
+     "efficiency": 13.2,
      "cpu_ratio": 1.0
     },
     {
      "threads": 16,
-     "ms": 656.3,
-     "speedup": 0.97,
-     "efficiency": 6.1,
+     "ms": 434.5,
+     "speedup": 0.87,
+     "efficiency": 5.4,
+     "cpu_ratio": 1.01
+    }
+   ],
+   "peak_speedup": 1.06,
+   "verdict": "does not scale",
+   "cpu_ratio_at_max": 1.01,
+   "evidence": "work is serial: CPU time never exceeded wall time"
+  },
+  {
+   "area": "measure",
+   "points": [
+    {
+     "threads": 1,
+     "ms": 824.0,
+     "speedup": 1.0,
+     "efficiency": 100.0,
+     "cpu_ratio": 1.0
+    },
+    {
+     "threads": 2,
+     "ms": 825.6,
+     "speedup": 1.0,
+     "efficiency": 50.0,
+     "cpu_ratio": 1.0
+    },
+    {
+     "threads": 4,
+     "ms": 871.2,
+     "speedup": 0.95,
+     "efficiency": 23.8,
+     "cpu_ratio": 1.0
+    },
+    {
+     "threads": 8,
+     "ms": 889.8,
+     "speedup": 0.93,
+     "efficiency": 11.6,
+     "cpu_ratio": 1.0
+    },
+    {
+     "threads": 16,
+     "ms": 936.6,
+     "speedup": 0.88,
+     "efficiency": 5.5,
      "cpu_ratio": 1.0
     }
    ],
@@ -1335,85 +1526,41 @@
    "evidence": "work is serial: CPU time never exceeded wall time"
   },
   {
-   "area": "measure",
-   "points": [
-    {
-     "threads": 1,
-     "ms": 1333.1,
-     "speedup": 1.0,
-     "efficiency": 100.0,
-     "cpu_ratio": 1.0
-    },
-    {
-     "threads": 2,
-     "ms": 1391.9,
-     "speedup": 0.96,
-     "efficiency": 48.0,
-     "cpu_ratio": 1.0
-    },
-    {
-     "threads": 4,
-     "ms": 1311.3,
-     "speedup": 1.02,
-     "efficiency": 25.5,
-     "cpu_ratio": 1.0
-    },
-    {
-     "threads": 8,
-     "ms": 1302.1,
-     "speedup": 1.02,
-     "efficiency": 12.8,
-     "cpu_ratio": 1.0
-    },
-    {
-     "threads": 16,
-     "ms": 1272.9,
-     "speedup": 1.05,
-     "efficiency": 6.6,
-     "cpu_ratio": 1.0
-    }
-   ],
-   "peak_speedup": 1.05,
-   "verdict": "does not scale",
-   "cpu_ratio_at_max": 1.0,
-   "evidence": "work is serial: CPU time never exceeded wall time"
-  },
-  {
    "area": "levelset",
    "points": [
     {
      "threads": 1,
-     "ms": 91.7,
+     "ms": 85.9,
      "speedup": 1.0,
      "efficiency": 100.0,
      "cpu_ratio": 1.0
     },
     {
      "threads": 2,
-     "ms": 94.2,
-     "speedup": 0.97,
-     "efficiency": 48.5,
+     "ms": 86.9,
+     "speedup": 0.99,
+     "efficiency": 49.5,
      "cpu_ratio": 1.0
     },
     {
      "threads": 4,
-     "ms": 96.1,
-     "speedup": 0.95,
-     "efficiency": 23.8,
+     "ms": 85.9,
+     "speedup": 1.0,
+     "efficiency": 25.0,
      "cpu_ratio": 1.0
     },
     {
      "threads": 8,
-     "ms": 95.6,
-     "speedup": 0.96,
-     "efficiency": 12.0,
+     "ms": 86.6,
+     "speedup": 0.99,
+     "efficiency": 12.4,
      "cpu_ratio": 1.01
     },
     {
      "threads": 16,
-     "ms": 93.6,
-     "speedup": 0.98,
-     "efficiency": 6.1,
+     "ms": 89.3,
+     "speedup": 0.96,
+     "efficiency": 6.0,
      "cpu_ratio": 1.02
     }
    ],
@@ -1427,41 +1574,41 @@
    "points": [
     {
      "threads": 1,
-     "ms": 1117.0,
+     "ms": 1029.6,
      "speedup": 1.0,
      "efficiency": 100.0,
      "cpu_ratio": 1.0
     },
     {
      "threads": 2,
-     "ms": 1149.2,
+     "ms": 1060.4,
      "speedup": 0.97,
      "efficiency": 48.5,
      "cpu_ratio": 1.0
     },
     {
      "threads": 4,
-     "ms": 1147.6,
-     "speedup": 0.97,
-     "efficiency": 24.2,
+     "ms": 1077.3,
+     "speedup": 0.96,
+     "efficiency": 24.0,
      "cpu_ratio": 1.0
     },
     {
      "threads": 8,
-     "ms": 1147.9,
-     "speedup": 0.97,
-     "efficiency": 12.1,
+     "ms": 1055.8,
+     "speedup": 0.98,
+     "efficiency": 12.2,
      "cpu_ratio": 1.0
     },
     {
      "threads": 16,
-     "ms": 1101.1,
-     "speedup": 1.01,
-     "efficiency": 6.3,
+     "ms": 1031.8,
+     "speedup": 1.0,
+     "efficiency": 6.2,
      "cpu_ratio": 1.0
     }
    ],
-   "peak_speedup": 1.01,
+   "peak_speedup": 1.0,
    "verdict": "does not scale",
    "cpu_ratio_at_max": 1.0,
    "evidence": "work is serial: CPU time never exceeded wall time"
@@ -1471,41 +1618,41 @@
    "points": [
     {
      "threads": 1,
-     "ms": 1068.5,
+     "ms": 951.4,
      "speedup": 1.0,
      "efficiency": 100.0,
      "cpu_ratio": 1.0
     },
     {
      "threads": 2,
-     "ms": 1060.9,
-     "speedup": 1.01,
-     "efficiency": 50.5,
+     "ms": 976.2,
+     "speedup": 0.97,
+     "efficiency": 48.5,
      "cpu_ratio": 1.0
     },
     {
      "threads": 4,
-     "ms": 1091.1,
-     "speedup": 0.98,
-     "efficiency": 24.5,
+     "ms": 999.4,
+     "speedup": 0.95,
+     "efficiency": 23.8,
      "cpu_ratio": 1.0
     },
     {
      "threads": 8,
-     "ms": 1074.7,
-     "speedup": 0.99,
-     "efficiency": 12.4,
+     "ms": 999.4,
+     "speedup": 0.95,
+     "efficiency": 11.9,
      "cpu_ratio": 1.0
     },
     {
      "threads": 16,
-     "ms": 1075.3,
-     "speedup": 0.99,
-     "efficiency": 6.2,
+     "ms": 985.2,
+     "speedup": 0.97,
+     "efficiency": 6.1,
      "cpu_ratio": 1.0
     }
    ],
-   "peak_speedup": 1.01,
+   "peak_speedup": 1.0,
    "verdict": "does not scale",
    "cpu_ratio_at_max": 1.0,
    "evidence": "work is serial: CPU time never exceeded wall time"
@@ -1515,41 +1662,41 @@
    "points": [
     {
      "threads": 1,
-     "ms": 2440.9,
+     "ms": 2148.1,
      "speedup": 1.0,
      "efficiency": 100.0,
      "cpu_ratio": 1.0
     },
     {
      "threads": 2,
-     "ms": 2514.1,
-     "speedup": 0.97,
-     "efficiency": 48.5,
+     "ms": 2250.0,
+     "speedup": 0.95,
+     "efficiency": 47.5,
      "cpu_ratio": 1.0
     },
     {
      "threads": 4,
-     "ms": 2526.0,
+     "ms": 2223.9,
      "speedup": 0.97,
      "efficiency": 24.2,
      "cpu_ratio": 1.0
     },
     {
      "threads": 8,
-     "ms": 2460.6,
-     "speedup": 0.99,
-     "efficiency": 12.4,
+     "ms": 2126.5,
+     "speedup": 1.01,
+     "efficiency": 12.6,
      "cpu_ratio": 1.0
     },
     {
      "threads": 16,
-     "ms": 2475.3,
-     "speedup": 0.99,
-     "efficiency": 6.2,
+     "ms": 2210.6,
+     "speedup": 0.97,
+     "efficiency": 6.1,
      "cpu_ratio": 1.0
     }
    ],
-   "peak_speedup": 1.0,
+   "peak_speedup": 1.01,
    "verdict": "does not scale",
    "cpu_ratio_at_max": 1.0,
    "evidence": "work is serial: CPU time never exceeded wall time"
@@ -1578,8 +1725,8 @@
   },
   {
    "category": "allocation",
-   "pattern": "malloc|free|realloc|calloc|alloc::|__rust_alloc|RawVec|memmove|memcpy|memset|page_fault|_int_free|tcache|arena",
-   "reason": "allocator, zeroing, bulk copy or page fault"
+   "pattern": "malloc|free|realloc|calloc|alloc::|__rust_alloc|RawVec|memmove|memcpy|memset|page_fault|_int_free|tcache|arena|clear_page|unmap_page|handle_mm_fault|__do_fault|zap_pte|free_pgtables|__list_del_entry|_raw_spin_lock|sync_regs|vma_|tlb_|__folio|release_pages|lru_add",
+   "reason": "allocator, zeroing, bulk copy, page fault or kernel memory management"
   },
   {
    "category": "pointer_chasing",

@@ -45,8 +45,16 @@ RULES = [
      "comparison sort machinery"),
     ("hashing", r"hashbrown|HashMap|HashSet|SipHash|::hash|rustc_hash|FxHash",
      "hash table probe or hashing"),
-    ("allocation", r"malloc|free|realloc|calloc|alloc::|__rust_alloc|RawVec|memmove|memcpy|memset|page_fault|_int_free|tcache|arena",
-     "allocator, zeroing, bulk copy or page fault"),
+    # Kernel-side memory work counts as allocation: faulting in and
+    # zeroing a large buffer is the real cost of asking for it, even
+    # though no userspace allocator symbol appears in the trace.
+    ("allocation",
+     r"malloc|free|realloc|calloc|alloc::|__rust_alloc|RawVec|memmove|"
+     r"memcpy|memset|page_fault|_int_free|tcache|arena|clear_page|"
+     r"unmap_page|handle_mm_fault|__do_fault|zap_pte|free_pgtables|"
+     r"__list_del_entry|_raw_spin_lock|sync_regs|vma_|tlb_|__folio|"
+     r"release_pages|lru_add",
+     "allocator, zeroing, bulk copy, page fault or kernel memory management"),
     ("pointer_chasing", r"bvh|Bvh|tree|Tree|node|Node|traverse|btree|BTree|::next|Iterator",
      "tree or node traversal"),
     ("math", r"predicate|orient|incircle|expansion|sqrt|::dot|::cross|normal|length|volume|area|moment|winding|crossing_sign|intersect|distance|f64|fma",
