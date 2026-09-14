@@ -9,10 +9,13 @@
 //! Usage: perf-probe <area> [threads]
 
 use axiolid_contracts::ExecutionOptions;
+use axiolid_core::Aabb;
 use axiolid_core::{BooleanOperator, Point3, Tolerance};
 use axiolid_mesh::{audit_mesh, TriMesh};
 use axiolid_mesh_boolean_boolmesh::BoolmeshBoolean;
 use axiolid_mesh_boolean_contract::MeshBoolean;
+use axiolid_spatial::{Bvh, SpatialIndex, SpatialItem};
+use std::ops::ControlFlow;
 
 /// Icosphere built in-crate so the probe depends on no fixture files.
 fn sphere(subdiv: u32, radius: f64, dx: f64) -> TriMesh {
@@ -184,17 +187,83 @@ fn main() {
             // problem when it is an O(rays * triangles) scan.
             let m = sphere(6, 1.0, 0.0);
             let mut acc = 0usize;
+            let mut dsum = 0.0f64;
+            let mut isum = 0u64;
             for i in 0..2000 {
                 let t = i as f64 * 0.001;
                 let ray = axiolid_core::Ray3 {
                     origin: Point3::new(3.0 * t.cos(), 3.0 * t.sin(), 0.25),
                     direction: Point3::new(-t.cos(), -t.sin(), 0.0) - Point3::ZERO,
                 };
-                if matches!(axiolid_ray_mesh::nearest_hit(&m, &ray, tol), Ok(Some(_))) {
+                if let Ok(Some(h)) = axiolid_ray_mesh::nearest_hit(&m, &ray, tol) {
                     acc += 1;
+                    dsum += h.t;
+                    isum += h.triangle as u64;
                 }
             }
+            eprintln!("raymesh hits={acc} tsum={dsum:.9} isum={isum}");
             std::hint::black_box(acc);
+        }
+        "raybvh" => {
+            // Same rays as "raymesh", but through the broad phase that
+            // already exists in axiolid-spatial. Build cost is INSIDE
+            // the timed region: a per-query BVH that is rebuilt each
+            // call would be a regression, and hiding the build would
+            // make the comparison flattering rather than useful.
+            let m = sphere(6, 1.0, 0.0);
+            let tol = Tolerance::MILLIMETRE;
+            let tris: Vec<_> = (0..m.triangle_count())
+                .map(|i| {
+                    let pts = &m.positions;
+                    let idx = &m.indices[i * 3..i * 3 + 3];
+                    let t = [
+                        pts[idx[0] as usize],
+                        pts[idx[1] as usize],
+                        pts[idx[2] as usize],
+                    ];
+                    let mut lo = t[0];
+                    let mut hi = t[0];
+                    for p in [t[1], t[2]] {
+                        lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
+                        hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+                    }
+                    SpatialItem::new(i, Aabb { min: lo, max: hi })
+                })
+                .collect();
+            let bvh = Bvh::build(tris);
+            let mut hits = 0usize;
+            let mut dsum = 0.0f64;
+            let mut isum = 0u64;
+            for i in 0..2000 {
+                let t = i as f64 * 0.001;
+                let ray = axiolid_core::Ray3 {
+                    origin: Point3::new(3.0 * t.cos(), 3.0 * t.sin(), 0.25),
+                    direction: Point3::new(-t.cos(), -t.sin(), 0.0) - Point3::ZERO,
+                };
+                // Front-to-back: the first candidate whose triangle is
+                // actually hit is the nearest, so stop there. Feeding
+                // every candidate would rebuild the brute-force scan.
+                let mut best: Option<axiolid_ray_mesh::RayHit3> = None;
+                bvh.visit_ray(&ray, &mut |cand| {
+                    let i = *cand.key;
+                    if let Ok(Some(h)) =
+                        axiolid_ray_mesh::nearest_hit_among(&m, &ray, tol, i..i + 1)
+                    {
+                        best = Some(h);
+                        return ControlFlow::Break(());
+                    }
+                    ControlFlow::Continue(())
+                });
+                if let Some(h) = best {
+                    hits += 1;
+                    dsum += h.t;
+                    isum += h.triangle as u64;
+                }
+            }
+            // A faster wrong answer is worthless, so print the hit
+            // count for comparison against the brute-force arm.
+            eprintln!("raybvh hits={hits} tsum={dsum:.9} isum={isum}");
+            std::hint::black_box(hits);
         }
         "project" => {
             // Planar projection + 2D overlay: sorting and predicate
@@ -224,7 +293,12 @@ fn main() {
             // compared: a per-process hash seed leaking into output ordering
             // would show up here and nowhere else.
             let m = sphere(3, 1.0, 0.0);
-            let r = axiolid_refine::refine(&m, axiolid_refine::RefineTarget::Uniform { levels: 1 }, None, tol);
+            let r = axiolid_refine::refine(
+                &m,
+                axiolid_refine::RefineTarget::Uniform { levels: 1 },
+                None,
+                tol,
+            );
             let (mesh, _) = r.expect("refine");
             let mut acc: u64 = 1469598103934665603;
             for p in &mesh.positions {
