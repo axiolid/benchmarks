@@ -12,6 +12,7 @@ name = "perf-probe"
 path = "src/main.rs"
 
 [dependencies]
+ahash = "0.8"
 axiolid = { path = "../../kernel/crates/facade/axiolid", features = ["application", "ray-mesh", "spatial"] }
 axiolid-decimate = { path = "../../kernel/crates/algorithms/discrete/decimate" }
 axiolid-refine = { path = "../../kernel/crates/algorithms/discrete/refine" }
