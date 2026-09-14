@@ -1,0 +1,29 @@
+[package]
+name = "perf-probe"
+version = "0.1.0"
+edition = "2021"
+
+# One area per invocation (argv[1]). Separate processes keep perf
+# attribution clean: one process running every area would blend their
+# symbol profiles into a single unusable histogram.
+
+[[bin]]
+name = "perf-probe"
+path = "src/main.rs"
+
+[dependencies]
+axiolid-core = { path = "../../kernel/crates/foundation/core" }
+axiolid-mesh = { path = "../../kernel/crates/representations/discrete/mesh" }
+axiolid-contracts = { path = "../../kernel/crates/contracts/common/base" }
+axiolid-mesh-boolean-contract = { path = "../../kernel/crates/contracts/operations/mesh-boolean" }
+axiolid-mesh-boolean-boolmesh = { path = "../../kernel/crates/providers/mesh/boolmesh" }
+axiolid-measure = { path = "../../kernel/crates/algorithms/query/measure" }
+axiolid-inspect = { path = "../../kernel/crates/algorithms/query/inspect" }
+axiolid-heal = { path = "../../kernel/crates/algorithms/repair/heal" }
+axiolid-levelset = { path = "../../kernel/crates/algorithms/sampled/levelset" }
+rayon = "1"
+
+[profile.release]
+# Frame pointers and debug symbols: perf needs them to name frames.
+debug = true
+force-frame-pointers = true

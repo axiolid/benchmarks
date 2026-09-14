@@ -1,280 +1,133 @@
-import { useCallback, useEffect, useState } from "react";
-import { ComparisonChart, ScalingChart } from "@/components/charts";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { KERNELS, type Results, kernelOrder } from "@/types";
+import { useEffect, useState } from "react";
+import { ComparisonView } from "@/components/comparison-view";
+import { ParallelView } from "@/components/parallel-view";
+import { PerfView } from "@/components/perf-view";
+import type { PerfDoc } from "@/perf-types";
 
-/** Display text per workload id emitted by the harness. */
-const WORKLOADS: Record<string, { label: string; caption: string }> = {
-  offset: {
-    label: "Offset openings",
-    caption: "Cut planes strictly inside the wall.",
-  },
-  flush: {
-    label: "Coincident faces",
-    caption: "Cut planes coincident with the wall's faces — the degenerate case.",
-  },
-  rotated: {
-    label: "Rotated openings",
-    caption:
-      "Openings rotated 30° in plan. Analytic fast paths are only valid for axis-aligned operands, so they decline here and the row shows the general solver's real cost.",
-  },
-};
+type SectionId = "comparison" | "perf" | "parallel" | "method";
+
+const SECTIONS: { id: SectionId; label: string; blurb: string }[] = [
+  { id: "perf", label: "Cost breakdown", blurb: "Where time goes per area" },
+  { id: "parallel", label: "Parallelism", blurb: "Thread scaling per area" },
+  { id: "comparison", label: "Kernel comparison", blurb: "Axiolid vs other kernels" },
+  { id: "method", label: "Method", blurb: "How these numbers are produced" },
+];
 
 export default function App() {
-  const [data, setData] = useState<Results | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [running, setRunning] = useState(false);
-  const [workload, setWorkload] = useState("offset");
-
-  const load = useCallback(async (fresh = false) => {
-    setError(null);
-    if (fresh) setRunning(true);
-    try {
-      // The server's cache-busting parameter is `fresh`, not `refresh`: a
-      // mismatched name silently returns the cached run, so "Re-run benchmark"
-      // appeared to work while measuring nothing.
-      const res = await fetch(`/api/results${fresh ? "?fresh=1&reps=5" : ""}`);
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
-      setData(body);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRunning(false);
-    }
-  }, []);
+  const [section, setSection] = useState<SectionId>("perf");
+  const [perf, setPerf] = useState<PerfDoc | null>(null);
+  const [perfError, setPerfError] = useState<string | null>(null);
 
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  const workloads = Array.from(
-    new Set((data?.rows ?? []).map((r) => r.workload ?? "offset")),
-  );
-  const viewRows = (data?.rows ?? []).filter(
-    (r) => (r.workload ?? "offset") === workload,
-  );
-  const maxN = viewRows.at(-1)?.n ?? 64;
+    fetch("/perf.json")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(setPerf)
+      .catch((e: Error) => setPerfError(e.message));
+  }, []);
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Axiolid kernel benchmarks</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Mesh boolean: one wall, N rectangular openings. Kernels called directly through their
-            Rust/C ABIs — no IfcConvert, no file I/O, no STEP parsing.
-          </p>
-        </div>
-        <Button onClick={() => void load(true)} disabled={running}>
-          {running ? "Running…" : "Re-run benchmark"}
-        </Button>
-      </header>
-
-      {error && (
-        <Card className="mb-6 border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive">Benchmark failed</CardTitle>
-            <CardDescription className="font-mono text-xs">{error}</CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-
-      {!data && !error && <p className="text-sm text-muted-foreground">Loading results…</p>}
-
-      {data && (
-        <>
-          <div className="mb-6 flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">best-of-{data.reps}</Badge>
-            {kernelOrder(data.built).map((k) => (
-              <Badge
-                key={k}
-                variant="outline"
-                style={{ borderColor: KERNELS[k].color, color: KERNELS[k].color }}
-              >
-                {KERNELS[k].label}
-                <span className="ml-1 opacity-60">
-                  {KERNELS[k].kind === "analytic" ? "analytic" : KERNELS[k].lang}
-                </span>
-              </Badge>
-            ))}
-            {data.mismatches > 0 && (
-              <Badge variant="destructive">
-                {data.mismatches} volume mismatch{data.mismatches > 1 ? "es" : ""}
-              </Badge>
-            )}
+    <div className="flex min-h-screen">
+      <nav className="w-60 shrink-0 border-r bg-card">
+        <div className="sticky top-0 p-4">
+          <div className="mb-6">
+            <div className="text-sm font-semibold tracking-tight">Axiolid</div>
+            <div className="text-xs text-muted-foreground">benchmarks</div>
           </div>
-
-          {workloads.length > 1 && (
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-muted-foreground">Geometry:</span>
-              {workloads.map((w) => (
-                <Button
-                  key={w}
-                  size="sm"
-                  variant={w === workload ? "default" : "outline"}
-                  onClick={() => setWorkload(w)}
+          <ul className="space-y-1">
+            {SECTIONS.map((s) => (
+              <li key={s.id}>
+                <button
+                  onClick={() => setSection(s.id)}
+                  className={`w-full rounded-md px-3 py-2 text-left transition ${
+                    section === s.id
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-accent"
+                  }`}
                 >
-                  {WORKLOADS[w]?.label ?? w}
-                </Button>
-              ))}
-              <span className="text-xs text-muted-foreground">
-                {WORKLOADS[workload]?.caption ?? ""}
-              </span>
+                  <div className="text-sm font-medium">{s.label}</div>
+                  <div className="text-xs text-muted-foreground">{s.blurb}</div>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {perf && (
+            <p className="mt-6 text-[11px] leading-relaxed text-muted-foreground">
+              Profiled {new Date(perf.generatedAt).toLocaleString()}
+            </p>
+          )}
+        </div>
+      </nav>
+
+      <main className="flex-1 px-8 py-10">
+        <div className="mx-auto max-w-5xl">
+          {section === "comparison" && <ComparisonView />}
+
+          {(section === "perf" || section === "parallel") && (
+            <>
+              {perfError && (
+                <div className="rounded-lg border border-destructive p-4 text-sm">
+                  <div className="font-medium text-destructive">
+                    Profile data unavailable
+                  </div>
+                  <p className="mt-1 text-muted-foreground">
+                    {perfError}. Generate it with
+                    <code className="mx-1">python3 scripts/perf-areas.py &gt; viewer/public/perf.json</code>
+                  </p>
+                </div>
+              )}
+              {!perf && !perfError && (
+                <p className="text-sm text-muted-foreground">Loading profile…</p>
+              )}
+              {perf && section === "perf" && <PerfView doc={perf} />}
+              {perf && section === "parallel" && <ParallelView doc={perf} />}
+            </>
+          )}
+
+          {section === "method" && (
+            <div className="space-y-4 text-sm">
+              <h2 className="text-lg font-semibold">Method</h2>
+              <p className="text-muted-foreground">
+                Each area runs as its own process under
+                <code className="mx-1">perf record</code>, so samples belong
+                to one area only. Time is attributed to a cost category by
+                classifying the symbol perf reports.
+              </p>
+              <div className="rounded-lg border-l-4 border-l-amber-500 bg-amber-500/5 p-4">
+                <div className="font-medium">What this is not</div>
+                <p className="mt-1 text-muted-foreground">
+                  Symbol classification is a heuristic, not ground truth. A
+                  symbol matching no rule is reported as
+                  <em className="mx-1">unclassified</em> rather than folded
+                  into a bucket — if that share is large, treat the chart for
+                  that area with suspicion. Domain rules were written by
+                  reading the functions concerned, not by guessing from names.
+                </p>
+              </div>
+              <h3 className="pt-2 font-medium">Classification rules, in order</h3>
+              <div className="rounded-lg border">
+                <table className="w-full text-xs">
+                  <thead className="border-b text-muted-foreground">
+                    <tr>
+                      <th className="p-2 text-left font-medium">Category</th>
+                      <th className="p-2 text-left font-medium">Matches</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {perf?.rules.map((r, i) => (
+                      <tr key={i} className="border-b last:border-0">
+                        <td className="p-2 align-top">{r.category}</td>
+                        <td className="p-2 align-top text-muted-foreground">
+                          {r.reason}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
-          <Tabs defaultValue="scaling">
-            <TabsList>
-              <TabsTrigger value="scaling">Scaling</TabsTrigger>
-              <TabsTrigger value="compare">Head-to-head</TabsTrigger>
-              <TabsTrigger value="table">Table</TabsTrigger>
-              <TabsTrigger value="exactness">Exactness</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="scaling">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Time vs opening count</CardTitle>
-                  <CardDescription>
-                    Log scale — the field spans five orders of magnitude. Solid lines are analytic
-                    paths that skip the 3D boolean entirely; dashed lines are general booleans.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ScalingChart data={{ ...data, rows: viewRows }} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="compare">
-              <Card>
-                <CardHeader>
-                  <CardTitle>At {maxN} openings</CardTitle>
-                  <CardDescription>
-                    The heaviest measured case, where the algorithmic gap is widest.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ComparisonChart data={{ ...data, rows: viewRows }} n={maxN} />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="table">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border text-left">
-                          <th className="pb-2 pr-4 font-medium">n</th>
-                          {kernelOrder(data.built).map((k) => (
-                            <th key={k} className="pb-2 pr-4 font-medium">
-                              {KERNELS[k].label}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="font-mono text-xs">
-                        {viewRows.map((row) => (
-                          <tr key={row.n} className="border-b border-border/50">
-                            <td className="py-2 pr-4">{row.n}</td>
-                            {kernelOrder(data.built).map((k) => (
-                              <td key={k} className="py-2 pr-4">
-                                {row[k] == null ? (
-                                  <span className="text-muted-foreground">deferred</span>
-                                ) : (
-                                  `${(row[k] as number).toFixed(3)}`
-                                )}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <p className="mt-4 text-xs text-muted-foreground">
-                    <strong>deferred</strong> = kernel declined the input (returned no result). Not a
-                    speed win.
-                  </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="exactness">
-              <Card>
-                <CardContent className="pt-6">
-                  {!data.exactness?.length ? (
-                    <p className="text-sm text-muted-foreground">
-                      This harness build did not report exactness.
-                    </p>
-                  ) : (
-                    <>
-                      <p className="mb-4 text-sm text-muted-foreground">
-                        Residual of each algebraic law, relative to vol(A)+vol(B). Operands are a
-                        slab and a 30° rotated box straddling its face. Unlike the timing tabs this
-                        needs no ground truth — the identity is its own oracle.
-                      </p>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b border-border text-left">
-                              <th className="pb-2 pr-4 font-medium">identity</th>
-                              {kernelOrder(data.built)
-                                .filter((k) => data.exactness?.[0]?.[k] !== undefined)
-                                .map((k) => (
-                                  <th key={k} className="pb-2 pr-4 font-medium">
-                                    {KERNELS[k].label}
-                                  </th>
-                                ))}
-                            </tr>
-                          </thead>
-                          <tbody className="font-mono text-xs">
-                            {data.exactness.map((row) => (
-                              <tr key={row.identity} className="border-b border-border/50">
-                                <td className="py-2 pr-4">
-                                  <div>{row.identity}</div>
-                                  <div className="text-muted-foreground">{row.law}</div>
-                                </td>
-                                {kernelOrder(data.built)
-                                  .filter((k) => row[k] !== undefined)
-                                  .map((k) => (
-                                    <td key={k} className="py-2 pr-4">
-                                      {row[k] == null ? (
-                                        <span className="text-muted-foreground">not scored</span>
-                                      ) : (
-                                        (row[k] as number).toExponential(2)
-                                      )}
-                                    </td>
-                                  ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      <p className="mt-4 text-xs text-muted-foreground">
-                        <strong>not scored</strong> = the kernel could not be asked (it refuses a
-                        rotated subject, failed, or is not compiled in). It does{" "}
-                        <strong>not</strong> mean the law held. ~1e-16 is machine epsilon: exact to
-                        the limit of double precision.
-                      </p>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </>
-      )}
+        </div>
+      </main>
     </div>
   );
 }

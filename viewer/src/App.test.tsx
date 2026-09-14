@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import App from "./App";
+import { ComparisonView as App } from "./components/comparison-view";
 
 // Fixture shaped exactly like /api/results, including the real lite_kernel
 // failure (null) so the UI is proven to handle a declining kernel.
@@ -38,7 +38,7 @@ describe("App", () => {
     const { container } = render(<App />);
 
     // Heading proves mount; kernel names prove the data reached the view.
-    await waitFor(() => expect(screen.getByText(/Axiolid kernel benchmarks/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Cross-kernel comparison/i)).toBeTruthy());
     await waitFor(() => expect(container.querySelectorAll("svg.recharts-surface").length).toBeGreaterThan(0));
 
     // Assert the DISPLAY labels users actually see, not the JSON keys.

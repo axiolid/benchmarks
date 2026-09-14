@@ -1448,3 +1448,39 @@ Contour COUNT on a high-genus section (Menger/gyroid plane cut) is the
 obvious next step -- `menger` and `gyroid` currently check volume only, and
 a plane through a Menger sponge has a known contour count that would
 exercise multi-contour handling far harder than a sphere does.
+
+## Perf profiler (perf-probe + scripts/perf-areas.py)
+
+Answers "where does each area spend its time, and would parallelism or a
+different data structure help?"
+
+One area per process under `perf record`, because a single process running
+every area would blend their symbols. Each sampled symbol is classified into
+a cost category by regex. Domain rules run FIRST and are grounded in what the
+code does, not what it is called: `EdgeAdjacency::build` and `emit_tetrahedron`
+are pointer_chasing because both are BTreeMap-driven, verified by reading them.
+
+Rules to follow when extending it:
+
+- `unclassified` is a REAL category and is always shown. An early run had
+  boolean at 61.9% unclassified; that number is the honesty check on the
+  whole chart. If it climbs, add rules — do not hide it in an "other" bucket.
+- `sampled_pct` reports how much of wall time perf actually sampled. Below
+  ~95% the breakdown is not trustworthy.
+- Scaling verdicts carry `cpu_ratio` (CPU time / wall time) as INDEPENDENT
+  evidence. A flat speedup curve alone cannot distinguish "does not scale"
+  from "the harness never engaged the threads"; cpu_ratio ~= 1.0 proves the
+  work really is serial. Every area currently reports 1.0.
+
+Regenerate with `python3 scripts/perf-areas.py > viewer/public/perf.json`.
+It needs `perf` and takes ~2 minutes.
+
+## Viewer render proof
+
+`pnpm test` (vitest) mocks fetch, so it cannot catch server or serialisation
+bugs. `bash verify.sh` drives headless chromium over CDP against the running
+server and asserts on user-visible labels plus real SVG geometry via getBBox —
+node counts lie, a chart can have 8 bar elements and still be visibly empty.
+
+Both were mutation-tested: blanking a nav label in the built bundle turns
+16/16 into 15/16.

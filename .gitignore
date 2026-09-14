@@ -20,3 +20,7 @@ __pycache__/
 
 # Probe build artefacts; the probe source itself is tracked.
 /simd-probe/target/
+
+# Probe crates keep their own target dirs.
+perf-probe/target/
+simd-probe/target/
