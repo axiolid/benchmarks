@@ -24,7 +24,10 @@ async function main() {
       pending.delete(msg.id);
     }
     if (msg.method === "Runtime.exceptionThrown") {
-      errors.push(msg.params.exceptionDetails.text ?? "exception");
+      const d = msg.params.exceptionDetails;
+      // .text is the generic wrapper; the real message is on the
+      // exception object, which is what actually names the bug.
+      errors.push(d.exception?.description ?? d.text ?? "exception");
     }
     // Only >=400 is an error; responseReceived alone fires for every success.
     if (msg.method === "Network.responseReceived" && msg.params.response.status >= 400) {
@@ -110,6 +113,118 @@ check(
   `${axisLabels} labels for ${areaCount} areas`,
 );
 
+
+
+
+// --- interaction checks: rendering is not the same as working ---
+
+// Focus a category: it must move leftmost and mute the others.
+const focused = await evalJs(`(() => {
+  const items = [...document.querySelectorAll(".recharts-legend-item")];
+  const t = items.find((e) => /Pointer chasing/i.test(e.textContent || ""));
+  if (!t) return "no legend item";
+  t.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  return "clicked";
+})()`);
+await new Promise((r) => setTimeout(r, 900));
+
+// Opacity is the actual muting mechanism, so read it rather than trust
+// that a click "worked".
+const muted = await evalJs(`(() => {
+  const bars = [...document.querySelectorAll(".recharts-bar")];
+  const ops = bars.map((b) => {
+    const p = b.querySelector("path");
+    return p ? Number(p.getAttribute("fill-opacity") || "1") : 1;
+  });
+  return JSON.stringify({
+    dim: ops.filter((o) => o < 0.5).length,
+    full: ops.filter((o) => o >= 0.9).length,
+  });
+})()`);
+const m = JSON.parse(muted || "{}");
+check("focus mutes other categories", (m.dim || 0) > 0 && (m.full || 0) > 0,
+  `dim=${m.dim} full=${m.full}`);
+
+// Absolute mode must switch the unit to ms, not just relabel.
+const abs = await evalJs(`(() => {
+  const b = [...document.querySelectorAll("button")]
+    .find((e) => /millisecond/i.test((e.textContent || "").trim()));
+  if (!b) return "no button";
+  b.click();
+  return "ok";
+})()`);
+await new Promise((r) => setTimeout(r, 900));
+const axisText = await evalJs(`(() => {
+  const t = [...document.querySelectorAll(".recharts-xAxis text")]
+    .map((e) => e.textContent).join(" ");
+  return t;
+})()`);
+check("absolute mode shows ms", abs === "ok" && /ms/.test(axisText || ""),
+  (axisText || "").slice(0, 40));
+
+// Before/after section must carry real measured numbers.
+
+const hist = await evalJs(`(() => {
+  const b = [...document.querySelectorAll("nav button")]
+    .find((e) => /Before/i.test(e.textContent || "") && /after/i.test(e.textContent || ""));
+  if (!b) return "no nav";
+  const r = b.getBoundingClientRect();
+  return JSON.stringify({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+})()`);
+const hp = JSON.parse(hist && hist !== "no nav" ? hist : "{}");
+if (hp.x) {
+  // Synthetic .click() does not always drive React handlers; a real CDP
+  // mouse event does.
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: hp.x, y: hp.y, button: "left", clickCount: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: hp.x, y: hp.y, button: "left", clickCount: 1 });
+}
+await new Promise((r) => setTimeout(r, 1200));
+
+// innerText via CDP truncates on this page, so read the table cells
+// directly -- the assertion needs the real content, not a preview.
+const histText = await evalJs(`(() => {
+  const m = document.querySelector("main") || document.body;
+  return (m.innerText || "").replace(/\\s+/g, " ");
+})()`);
+check("before/after has revisions", /5e52dde/.test(histText) && /b47274d/.test(histText),
+  hist === "ok" ? "" : String(hist));
+check("before/after names a real win", /refine/i.test(histText) && /6[0-9]%/.test(histText),
+  "");
+// The noise disclosure is the honesty check on this whole table.
+check("noise floor caveat shown", /noise floor/i.test(histText), "");
+
+// The per-row "within noise" verdict only appears once the real-wins
+// filter is off, so uncheck it before asserting.
+const box = await evalJs(`(() => {
+  const c = document.querySelector("input[type=checkbox]");
+  if (!c) return "nobox";
+  const r = c.getBoundingClientRect();
+  return JSON.stringify({ x: r.x + r.width/2, y: r.y + r.height/2 });
+})()`);
+const bp = JSON.parse(box && box !== "nobox" ? box : "{}");
+if (bp.x) {
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: bp.x, y: bp.y, button: "left", clickCount: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: bp.x, y: bp.y, button: "left", clickCount: 1 });
+}
+await new Promise((r) => setTimeout(r, 700));
+const allText = await evalJs(`(() => {
+  const m = document.querySelector("main") || document.body;
+  return (m.innerText || "").replace(/\\s+/g, " ");
+})()`);
+check("within-noise rows labelled", /within noise/i.test(allText), "");
+const shot2 = await send("Page.captureScreenshot", { format: "png" });
+writeFileSync("/tmp/hist2.png", Buffer.from(shot2.data, "base64"));
+console.log("history screenshot: /tmp/hist2.png");
+
+
+await evalJs(`(() => {
+  const b = [...document.querySelectorAll("nav button")]
+    .find((e) => /Cost breakdown/i.test(e.textContent || ""));
+  b && b.click();
+  return true;
+})()`);
+await new Promise((r) => setTimeout(r, 900));
+
 // 5. Click through to the Parallelism section and prove it renders too.
 const clicked = await evalJs(`(() => {
   const b = [...document.querySelectorAll("nav button")]
@@ -136,6 +251,8 @@ await new Promise((r) => setTimeout(r, 2500));
 const shot = await send("Page.captureScreenshot", { format: "png" });
 writeFileSync("/tmp/perf-view.png", Buffer.from(shot.data, "base64"));
 console.log("screenshot: /tmp/perf-view.png");
+
+
 
 const failed = checks.filter((c) => !c.ok);
 console.log(`\n${checks.length - failed.length}/${checks.length} checks passed`);

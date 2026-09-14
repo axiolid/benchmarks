@@ -88,3 +88,28 @@ export const AREA_LABELS: Record<string, { label: string; blurb: string }> = {
   project: { label: "Project", blurb: "Planar projection with 2D polygon overlay." },
   decompose: { label: "Decompose", blurb: "Convex decomposition by repeated plane splits." },
 };
+
+/** One optimisation step: a kernel commit and what it did to each area. */
+export interface HistoryRev {
+  rev: string;
+  label: string;
+  /** What landed in this commit, in one line. */
+  note: string;
+}
+
+export interface HistoryPoint {
+  area: string;
+  /** Median ms per revision, keyed by short sha. */
+  ms: Record<string, number>;
+  /** Worst observed spread for this area, as a percentage of median. */
+  noisePct: number;
+}
+
+export interface HistoryDoc {
+  revs: HistoryRev[];
+  /** One entry per area. Named `areas` to match the emitted JSON. */
+  areas: HistoryPoint[];
+  /** Deltas below this are indistinguishable from jitter. */
+  noiseFloorPct: number;
+  reps: number;
+}
