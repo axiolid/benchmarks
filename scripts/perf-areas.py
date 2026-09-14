@@ -28,7 +28,7 @@ AREAS = ["boolean", "audit", "measure", "levelset", "inspect", "heal", "genus",
 # Domain rules come FIRST and are grounded in what the code does, not in
 # what its name suggests. Each was checked by reading the function:
 #   EdgeAdjacency::build  -> BTreeMap<EdgeKey, Vec<EdgeUse>> insertion
-#   emit_tetrahedron      -> two BTreeMaps for vertex welding
+#   emit_tetrahedron      -> hash weld cache since b47274d; no longer listed
 #   MortonCollider        -> spatial index build over morton codes
 #   Hmesh::new / Manifold::new -> half-edge construction, index shuffling
 # Without these the boolean area reported 62% "unclassified", which is
@@ -42,17 +42,26 @@ DOMAIN_RULES = [
     ("sorting", r"EdgeSink>::summarize|counting_sort_edges",
      "counting sort over edge records (inlined; verified in the disassembly)"),
     # Verified by reading each body, not inferred from the name:
-    #   refine::split_edge      -> BTreeMap midpoint cache (lib.rs:183)
-    #   convex_decompose_with   -> BTreeMap vertex intern + adjacency (lib.rs:424,613)
+    #   convex_decompose_with   -> O(n^2) worst_concavity scan (lib.rs:361)
     #   decimate                -> sort_by over collapse candidates (collapse.rs:137)
     #   project_mesh            -> pairwise polygon union (overlay), not mesh work
-    ("pointer_chasing", r"refine::split_edge|convex_decompose_with|decompose::.*intern",
+    # split_edge and emit_tetrahedron moved to a hash map (kernel b47274d),
+    # so they are no longer tree traversal and are deliberately not listed.
+    # convex_decompose_with stays: its cost is the O(n^2) worst_concavity
+    # scan over every vertex per triangle, not the weld cache.
+    # Post-b47274d these two are hash-probe + per-vertex geometry inlined
+    # into one symbol. "hashing" would overstate it (the probe is a small
+    # part) and pointer_chasing is now simply wrong, so they are counted
+    # as the mixed structural work they are.
+    ("branch_bookkeeping", r"refine::split_edge|emit_tetrahedron",
+     "hash weld probe plus per-vertex placement (b47274d)"),
+    ("pointer_chasing", r"convex_decompose_with",
      "BTreeMap intern/midpoint lookup (verified in the source)"),
     ("sorting", r"decimate::decimate|collapse::decimate",
      "sort over collapse candidates (verified in the source)"),
     ("branch_bookkeeping", r"project::project_mesh|overlay|union_soup",
      "2D polygon overlay and union bookkeeping"),
-    ("pointer_chasing", r"EdgeAdjacency::build|emit_tetrahedron|MortonCollider|find_collisions|collider",
+    ("pointer_chasing", r"EdgeAdjacency::build|MortonCollider|find_collisions|collider",
      "BTreeMap or spatial-index traversal (verified by reading the source)"),
     ("branch_bookkeeping", r"Hmesh::new|Manifold::new|level_set|euler_characteristic|shadows0|Kernel0",
      "topology construction and index bookkeeping"),

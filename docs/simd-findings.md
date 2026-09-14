@@ -200,3 +200,32 @@ delta.
 Sorting is now absent from both areas. The remaining cost is branch
 bookkeeping plus the page faults for the scratch buffer, which is why
 the classifier now counts kernel paging as allocation.
+
+## The BTreeMap weld pattern
+
+Four areas showed the same shape: a BTreeMap used as a vertex or midpoint
+weld cache, dominating the profile. Three were safe to hash, one was not.
+
+  levelset   79 ms -> 45 ms   43% faster
+  refine    147 ms -> 47 ms   68% faster
+  decompose 670 ms -> 645 ms   3.7% faster
+
+The split is whether map ITERATION order is observable. refine and
+levelset only ever query by key, so their ordering cannot reach the
+output. EdgeAdjacency (the genus hotspot) is iterated by six methods and
+decompose feeds that order into loop stitching, so it stays a BTreeMap:
+hashing it would silently change results.
+
+refine's docs claimed its cross-process determinism came FROM the
+BTreeMap. That was wrong even before the change: ordering comes from the
+triangle walk. The guarantee is now checked by digesting output in five
+separate processes, and mutation-tested by making vertex numbering
+depend on cache iteration order, which yields five different digests.
+
+decompose barely moved. Its cost is worst_concavity, an O(n^2) scan of
+every vertex for every triangle per split iteration, so the weld was
+never its bottleneck. That is a structural fix, not a container swap.
+
+Two CAPDIAG eprintln! calls were also found in decompose, formatting and
+allocating on every call in release. They were the only eprintln! in any
+kernel library.

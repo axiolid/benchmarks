@@ -219,6 +219,28 @@ fn main() {
                 std::hint::black_box(&r);
             }
         }
+        "refinehash" => {
+            // Digest of the refined mesh. Printed so separate PROCESSES can be
+            // compared: a per-process hash seed leaking into output ordering
+            // would show up here and nowhere else.
+            let m = sphere(3, 1.0, 0.0);
+            let r = axiolid_refine::refine(&m, axiolid_refine::RefineTarget::Uniform { levels: 1 }, None, tol);
+            let (mesh, _) = r.expect("refine");
+            let mut acc: u64 = 1469598103934665603;
+            for p in &mesh.positions {
+                for v in [p.x, p.y, p.z] {
+                    for b in v.to_bits().to_le_bytes() {
+                        acc ^= u64::from(b);
+                        acc = acc.wrapping_mul(1099511628211);
+                    }
+                }
+            }
+            for i in &mesh.indices {
+                acc ^= u64::from(*i);
+                acc = acc.wrapping_mul(1099511628211);
+            }
+            println!("refine_digest,{acc:016x}");
+        }
         other => {
             eprintln!("unknown area: {other}");
             std::process::exit(2);
