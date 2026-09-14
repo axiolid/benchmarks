@@ -78,4 +78,13 @@ export const AREA_LABELS: Record<string, { label: string; blurb: string }> = {
   inspect: { label: "Inspect", blurb: "Winding number and point containment queries." },
   heal: { label: "Heal", blurb: "Self-intersection detection and defect diagnosis." },
   genus: { label: "Genus", blurb: "Euler characteristic over the edge structure." },
+  decimate: { label: "Decimate", blurb: "Edge-collapse simplification to a triangle budget." },
+  refine: { label: "Refine", blurb: "Uniform subdivision, quadrupling triangles per pass." },
+  raymesh: {
+    label: "Ray/mesh",
+    blurb:
+      "Narrow-phase ray-triangle tests. nearest_hit scans every triangle by design \u2014 the broad phase lives in axiolid-spatial \u2014 so this is not a BVH measurement.",
+  },
+  project: { label: "Project", blurb: "Planar projection with 2D polygon overlay." },
+  decompose: { label: "Decompose", blurb: "Convex decomposition by repeated plane splits." },
 };

@@ -144,6 +144,81 @@ fn main() {
                 std::hint::black_box(axiolid_inspect::genus(&m).ok());
             }
         }
+        "decimate" => {
+            // Edge-collapse simplification: a priority queue over
+            // candidate collapses, so heap churn and topology updates
+            // rather than float work.
+            let m = sphere(6, 1.0, 0.0);
+            for _ in 0..6 {
+                let r = axiolid_decimate::decimate(
+                    &m,
+                    axiolid_decimate::DecimateTarget::TriangleBudget(8000),
+                    tol,
+                );
+                if let Err(e) = &r {
+                    eprintln!("decimate FAILED: {e:?}");
+                }
+                std::hint::black_box(&r);
+            }
+        }
+        "refine" => {
+            // Uniform subdivision: allocation-dominated by construction,
+            // every pass quadruples the triangle count.
+            let m = sphere(5, 1.0, 0.0);
+            for _ in 0..4 {
+                let r = axiolid_refine::refine(
+                    &m,
+                    axiolid_refine::RefineTarget::Uniform { levels: 2 },
+                    None,
+                    tol,
+                );
+                std::hint::black_box(&r);
+            }
+        }
+        "raymesh" => {
+            // NOT a BVH workload: nearest_hit deliberately scans every
+            // triangle -- the broad phase lives in axiolid-spatial and is
+            // the caller's job. So this measures the narrow-phase
+            // ray-triangle test, which is float work, not pointer chasing.
+            // Labelling it "BVH" would have misread its 43s as a tree
+            // problem when it is an O(rays * triangles) scan.
+            let m = sphere(6, 1.0, 0.0);
+            let mut acc = 0usize;
+            for i in 0..2000 {
+                let t = i as f64 * 0.001;
+                let ray = axiolid_core::Ray3 {
+                    origin: Point3::new(3.0 * t.cos(), 3.0 * t.sin(), 0.25),
+                    direction: Point3::new(-t.cos(), -t.sin(), 0.0) - Point3::ZERO,
+                };
+                if matches!(axiolid_ray_mesh::nearest_hit(&m, &ray, tol), Ok(Some(_))) {
+                    acc += 1;
+                }
+            }
+            std::hint::black_box(acc);
+        }
+        "project" => {
+            // Planar projection + 2D overlay: sorting and predicate
+            // evaluation rather than mesh topology.
+            let m = sphere(6, 1.0, 0.0);
+            let plane = axiolid_core::PlaneFrame::ground();
+            for _ in 0..40 {
+                let r = axiolid_project::project_mesh(&m, plane, tol);
+                std::hint::black_box(&r);
+            }
+        }
+        "decompose" => {
+            // Convex decomposition: repeated plane splits, each one a
+            // boolean-flavoured topology rebuild.
+            let m = sphere(5, 1.0, 0.0);
+            for _ in 0..4 {
+                let r = axiolid_decompose::convex_decompose(
+                    &m,
+                    axiolid_decompose::Strategy::Exact,
+                    tol,
+                );
+                std::hint::black_box(&r);
+            }
+        }
         other => {
             eprintln!("unknown area: {other}");
             std::process::exit(2);

@@ -97,6 +97,19 @@ for (const area of ["Boolean", "Mesh audit", "Measure", "Level set", "Inspect", 
 
 check("no console/network errors", errors.length === 0, errors.slice(0, 3).join(" | "));
 
+// 4b. Every area must have a y-axis label. The vision pass caught recharts
+// silently dropping alternate ticks at 12 rows while every DOM check passed.
+const axisLabels = await evalJs(`(() => {
+  const t = [...document.querySelectorAll(".recharts-yAxis .recharts-cartesian-axis-tick-value")];
+  return t.map((n) => n.textContent.trim()).filter(Boolean).length;
+})()`);
+const areaCount = await evalJs(`(window.__perf?.areas?.length ?? 12)`);
+check(
+  "every area has a y-axis label",
+  axisLabels >= 12,
+  `${axisLabels} labels for ${areaCount} areas`,
+);
+
 // 5. Click through to the Parallelism section and prove it renders too.
 const clicked = await evalJs(`(() => {
   const b = [...document.querySelectorAll("nav button")]

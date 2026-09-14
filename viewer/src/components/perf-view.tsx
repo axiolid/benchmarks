@@ -65,12 +65,18 @@ export function PerfView({ doc }: { doc: PerfDoc }) {
       </div>
 
       <div className="rounded-lg border bg-card p-4">
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={Math.max(300, stacked.length * 34)}>
           <BarChart data={stacked} layout="vertical"
                     margin={{ left: 24, right: 16 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-            <XAxis type="number" domain={[0, 100]} unit="%" fontSize={12} />
-            <YAxis type="category" dataKey="area" width={110} fontSize={12} />
+            <XAxis
+              type="number"
+              domain={[0, 100]}
+              ticks={[0, 25, 50, 75, 100]}
+              unit="%"
+              fontSize={12}
+            />
+            <YAxis type="category" dataKey="area" width={110} fontSize={12} interval={0} />
             <Tooltip
               formatter={(v: number, n: string) => [`${v.toFixed(1)}%`, label(n)]}
             />

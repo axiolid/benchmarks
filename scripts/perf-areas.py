@@ -19,7 +19,8 @@ ROOT = Path(__file__).resolve().parent.parent
 PROBE = ROOT / "perf-probe/target/release/perf-probe"
 PERF_DIR = Path("/mnt/archive/corpus/perf")
 
-AREAS = ["boolean", "audit", "measure", "levelset", "inspect", "heal", "genus"]
+AREAS = ["boolean", "audit", "measure", "levelset", "inspect", "heal", "genus",
+         "decimate", "refine", "raymesh", "project", "decompose"]
 
 # Ordered: first match wins, so narrower patterns must precede broader
 # ones. Each entry is (category, regex, why) -- the reason is carried
@@ -34,6 +35,23 @@ AREAS = ["boolean", "audit", "measure", "levelset", "inspect", "heal", "genus"]
 # honest but useless; guessing from names would have been useless AND
 # misleading.
 DOMAIN_RULES = [
+    # summarize() inlines the counting sort (kernel e077c92), so its samples
+    # ARE sort work even though no core::slice::sort symbol survives. Left
+    # unlisted it fell into branch_bookkeeping and the chart showed audit at
+    # "0% sorting" -- flattering and wrong.
+    ("sorting", r"EdgeSink>::summarize|counting_sort_edges",
+     "counting sort over edge records (inlined; verified in the disassembly)"),
+    # Verified by reading each body, not inferred from the name:
+    #   refine::split_edge      -> BTreeMap midpoint cache (lib.rs:183)
+    #   convex_decompose_with   -> BTreeMap vertex intern + adjacency (lib.rs:424,613)
+    #   decimate                -> sort_by over collapse candidates (collapse.rs:137)
+    #   project_mesh            -> pairwise polygon union (overlay), not mesh work
+    ("pointer_chasing", r"refine::split_edge|convex_decompose_with|decompose::.*intern",
+     "BTreeMap intern/midpoint lookup (verified in the source)"),
+    ("sorting", r"decimate::decimate|collapse::decimate",
+     "sort over collapse candidates (verified in the source)"),
+    ("branch_bookkeeping", r"project::project_mesh|overlay|union_soup",
+     "2D polygon overlay and union bookkeeping"),
     ("pointer_chasing", r"EdgeAdjacency::build|emit_tetrahedron|MortonCollider|find_collisions|collider",
      "BTreeMap or spatial-index traversal (verified by reading the source)"),
     ("branch_bookkeeping", r"Hmesh::new|Manifold::new|level_set|euler_characteristic|shadows0|Kernel0",

@@ -12,6 +12,11 @@ name = "perf-probe"
 path = "src/main.rs"
 
 [dependencies]
+axiolid-decimate = { path = "../../kernel/crates/algorithms/discrete/decimate" }
+axiolid-refine = { path = "../../kernel/crates/algorithms/discrete/refine" }
+axiolid-ray-mesh = { path = "../../kernel/crates/algorithms/query/intersection/ray-mesh" }
+axiolid-project = { path = "../../kernel/crates/algorithms/planar/project" }
+axiolid-decompose = { path = "../../kernel/crates/algorithms/discrete/decompose" }
 axiolid-core = { path = "../../kernel/crates/foundation/core" }
 axiolid-mesh = { path = "../../kernel/crates/representations/discrete/mesh" }
 axiolid-contracts = { path = "../../kernel/crates/contracts/common/base" }
