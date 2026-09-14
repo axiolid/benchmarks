@@ -17,3 +17,6 @@ dist/
 manifest.json
 __pycache__/
 *.pyc
+
+# Probe build artefacts; the probe source itself is tracked.
+/simd-probe/target/

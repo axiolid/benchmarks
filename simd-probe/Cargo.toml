@@ -1,0 +1,23 @@
+[package]
+name = "simd-probe"
+version = "0.1.0"
+edition = "2021"
+
+# Standalone so it can be compiled twice with different codegen flags
+# without rebuilding the whole benchmark suite, and so it pulls in no
+# C++ dependency whose own build flags we do not control.
+[workspace]
+
+[dependencies]
+axiolid-core = { path = "../../kernel/crates/foundation/core" }
+axiolid-mesh = { path = "../../kernel/crates/representations/discrete/mesh" }
+axiolid-contracts = { path = "../../kernel/crates/contracts/common/base" }
+axiolid-measure = { path = "../../kernel/crates/algorithms/query/measure" }
+axiolid-inspect = { path = "../../kernel/crates/algorithms/query/inspect" }
+axiolid-heal = { path = "../../kernel/crates/algorithms/repair/heal" }
+axiolid-levelset = { path = "../../kernel/crates/algorithms/sampled/levelset" }
+axiolid-mesh-boolean-contract = { path = "../../kernel/crates/contracts/operations/mesh-boolean" }
+axiolid-mesh-boolean-boolmesh = { path = "../../kernel/crates/providers/mesh/boolmesh" }
+
+[profile.release]
+debug = true
