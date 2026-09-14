@@ -206,4 +206,81 @@ fn main() {
         acc[0] + acc[1] + acc[2] + acc[3]
     });
     println!("elementwise_4acc,{ns:.0}");
+
+    // How much of the entry point is the reduction at all? If audit
+    // dominates, halving the arithmetic is worth almost nothing at the
+    // API boundary, and optimising it would be effort spent where the
+    // time is not.
+    let ns = median_ns(50, || audit_mesh(&big, tol));
+    println!("audit_only,{ns:.0}");
+
+    // Profiling says ~17% of audit_mesh is sort_unstable_by_key over
+    // 3*triangle_count edge records, and the audit is ~94% of the
+    // measure entry points. So the sort -- not the float maths -- is
+    // where the time is.
+    //
+    // The key is a (u64, u64) pair of VERTEX INDICES, bounded by
+    // positions.len(), which a comparison sort cannot exploit but an
+    // LSD radix sort can. Prototyped here before touching the kernel:
+    // if the win does not show on representative data it is not worth
+    // perturbing a structure ten test suites depend on.
+    let nv = big.positions.len() as u64;
+    let mut records: Vec<(u64, u64, i8)> = Vec::with_capacity(big.indices.len());
+    for t in big.indices.chunks_exact(3) {
+        for (x, y) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+            let (l, h) = (u64::from(x.min(y)), u64::from(x.max(y)));
+            records.push((l, h, 1));
+        }
+    }
+
+    let base = records.clone();
+    let ns = median_ns(50, || {
+        let mut v = base.clone();
+        v.sort_unstable_by_key(|e| (e.0, e.1));
+        v.len()
+    });
+    println!("edge_sort_comparison,{ns:.0}");
+
+    let ns = median_ns(50, || {
+        let mut v = base.clone();
+        radix_sort_edges(&mut v, nv);
+        v.len()
+    });
+    println!("edge_sort_radix,{ns:.0}");
+
+    // Correctness, not just speed: a faster sort that orders
+    // differently would silently change every downstream edge count.
+    let mut want = base.clone();
+    want.sort_unstable_by_key(|e| (e.0, e.1));
+    let mut got = base.clone();
+    radix_sort_edges(&mut got, nv);
+    let keys_match = want.iter().zip(&got).all(|(a, b)| (a.0, a.1) == (b.0, b.1));
+    println!("# radix key order matches comparison sort: {keys_match}");
+}
+
+/// LSD radix sort on the (low, high) vertex-index key.
+///
+/// Two stable counting passes, least-significant field first, so the
+/// final order is by `low` then `high` -- identical to the comparison
+/// sort's key order. Counting sort is stable, which is what makes the
+/// two-pass composition produce a correct lexicographic ordering.
+fn radix_sort_edges(v: &mut Vec<(u64, u64, i8)>, buckets: u64) {
+    let n = buckets as usize + 1;
+    let mut out = vec![(0u64, 0u64, 0i8); v.len()];
+    for pass in 0..2 {
+        let key = |e: &(u64, u64, i8)| if pass == 0 { e.1 } else { e.0 } as usize;
+        let mut counts = vec![0usize; n + 1];
+        for e in v.iter() {
+            counts[key(e) + 1] += 1;
+        }
+        for i in 0..n {
+            counts[i + 1] += counts[i];
+        }
+        for e in v.iter() {
+            let k = key(e);
+            out[counts[k]] = *e;
+            counts[k] += 1;
+        }
+        std::mem::swap(v, &mut out);
+    }
 }

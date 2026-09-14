@@ -107,3 +107,74 @@ which is why they are reported as flat rather than as small wins.
 4. If hand-written SIMD is ever wanted, `InstructionPolicy` must first
    be wired through a provider -- today nothing reads it, which is also
    why the benchmark scorecard refuses to gate SIMD equivalence.
+
+## Correction: the accumulator split is the wrong target
+
+The SIMD probe found a 2x win from splitting a single f64 accumulator
+into four, and the obvious next step looked like applying that to the
+`measure` reductions. Profiling first says no.
+
+Breakdown of one `volume_properties` call on 81920 triangles:
+
+| part | time | share |
+| --- | --- | --- |
+| `audit_mesh` | 9645779 ns | 93.8% |
+| the float reduction | 156910 ns | 1.5% |
+| entry point total | 10282368 ns | 100% |
+
+Halving the reduction would make the entry point 0.76% faster, in
+exchange for changing float summation order in a function that roughly
+ten downstream test suites assert against. Not worth it. The 2x is real
+but it applies to 1.5% of the work.
+
+## Where the time actually is
+
+`perf record --call-graph=dwarf` over the probe:
+
+```
+34.35%  core::slice::sort::unstable::quicksort::quicksort
+22.44%  core::slice::sort::shared::smallsort::small_sort_general
+10.73%  axiolid_mesh::audit::audit_mesh
+ 4.74%  axiolid_measure::mesh::surface_properties
+```
+
+57% of total runtime is sorting, and the caller-attributed tree puts
+~17% of each `audit_mesh` call in `sort_unstable_by_key`:
+
+```
+--21.39%--axiolid_mesh::audit::audit_mesh
+   --17.27%--VecEdgeSink::summarize
+      --16.69%--core::slice::sort_unstable_by_key
+```
+
+`VecEdgeSink::summarize` sorts `3 * triangle_count` edge records to
+group them by undirected key. The sort is a comparison sort over a
+`(u64, u64)` pair of VERTEX INDICES, which are bounded by
+`positions.len()`. A comparison sort cannot exploit that bound; a radix
+sort can.
+
+Note the existing code is already the good version -- `audit_mesh` uses
+the sort-based `VecEdgeSink` and falls back to the `BTreeMap` sink only
+when the exact allocation fails. The remaining cost is the sort itself,
+not a data-structure mistake.
+
+## Measured prototype
+
+LSD radix, two stable counting passes over `high` then `low`, on 245760
+edge records:
+
+| sort | median |
+| --- | --- |
+| `sort_unstable_by_key` | 7690829 ns |
+| two-pass radix | 5071692 ns |
+
+Roughly 34% off the sort, reproducible across three runs, with the
+resulting key order asserted identical to the comparison sort's. Since
+the sort is ~17% of the audit and the audit is ~94% of the measure
+entry points, that is worth several times more than the accumulator
+change it replaces.
+
+Prototype lives in `simd-probe`; it has NOT been applied to the kernel.
+Doing so means touching `MeshHealth`'s edge pipeline, which every
+`is_closed_two_manifold` caller depends on, so it wants its own change
+with the full gate behind it.
