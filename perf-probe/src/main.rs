@@ -265,6 +265,24 @@ fn main() {
             eprintln!("raybvh hits={hits} tsum={dsum:.9} isum={isum}");
             std::hint::black_box(hits);
         }
+        "facaderay" => {
+            // The win as a CALLER sees it: same public entry point,
+            // repeated casts against one mesh.
+            let app = axiolid::application::Application::portable().expect("app");
+            let m = sphere(6, 1.0, 0.0);
+            let mut acc = 0usize;
+            for i in 0..2000 {
+                let t = i as f64 * 0.001;
+                let ray = axiolid_core::Ray3 {
+                    origin: Point3::new(3.0 * t.cos(), 3.0 * t.sin(), 0.25),
+                    direction: Point3::new(-t.cos(), -t.sin(), 0.0) - Point3::ZERO,
+                };
+                if matches!(app.nearest_mesh_hit(&m, &ray, tol), Ok(Some(_))) {
+                    acc += 1;
+                }
+            }
+            println!("facaderay hits={acc}");
+        }
         "project" => {
             // Planar projection + 2D overlay: sorting and predicate
             // evaluation rather than mesh topology.
