@@ -16,6 +16,7 @@ REVS = [
     ("5e52dde", "Baseline", "Before any of this work."),
     ("a24f8a6", "Counting sort", "audit_mesh edge grouping: comparison sort to two-pass counting sort."),
     ("b47274d", "Hashed weld caches", "levelset, refine, decompose: BTreeMap weld caches to hash maps."),
+    ("c8e150a", "Concavity prune", "decompose: bounding-sphere bound skips faces that cannot hold the worst concavity."),
 ]
 
 rows = list(csv.DictReader(open(SRC)))
@@ -58,8 +59,10 @@ doc = {
 }
 json.dump(doc, open(OUT, "w"), indent=1)
 
-print(f"{'area':11}{'base':>8}{'sort':>8}{'weld':>8}{'total':>9}  verdict")
+head = "".join(f"{r[1][:7]:>9}" for r in REVS)
+print(f"{'area':11}{head}{'total':>9}  verdict")
 for a in areas:
     m = a["ms"]
     verdict = "REAL" if a["real"] else "noise"
-    print(f"{a['area']:11}{m['5e52dde']:7.0f}m{m['a24f8a6']:7.0f}m{m['b47274d']:7.0f}m{a['gain']:8.1f}%  {verdict}")
+    cells = "".join(f"{m[r[0]]:8.0f}m" for r in REVS)
+    print(f"{a['area']:11}{cells}{a['gain']:8.1f}%  {verdict}")

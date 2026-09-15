@@ -42,21 +42,24 @@ DOMAIN_RULES = [
     ("sorting", r"EdgeSink>::summarize|counting_sort_edges",
      "counting sort over edge records (inlined; verified in the disassembly)"),
     # Verified by reading each body, not inferred from the name:
-    #   convex_decompose_with   -> O(n^2) worst_concavity scan (lib.rs:361)
+    #   convex_decompose_with   -> was an O(n^2) scan; pruned in c8e150a
     #   decimate                -> sort_by over collapse candidates (collapse.rs:137)
     #   project_mesh            -> pairwise polygon union (overlay), not mesh work
     # split_edge and emit_tetrahedron moved to a hash map (kernel b47274d),
     # so they are no longer tree traversal and are deliberately not listed.
-    # convex_decompose_with stays: its cost is the O(n^2) worst_concavity
-    # scan over every vertex per triangle, not the weld cache.
     # Post-b47274d these two are hash-probe + per-vertex geometry inlined
     # into one symbol. "hashing" would overstate it (the probe is a small
     # part) and pointer_chasing is now simply wrong, so they are counted
     # as the mixed structural work they are.
     ("branch_bookkeeping", r"refine::split_edge|emit_tetrahedron",
      "hash weld probe plus per-vertex placement (b47274d)"),
-    ("pointer_chasing", r"convex_decompose_with",
-     "BTreeMap intern/midpoint lookup (verified in the source)"),
+    # convex_decompose_with is deliberately NOT listed. Its O(n^2)
+    # worst_concavity scan is gone (kernel c8e150a): a bounding-sphere
+    # bound now skips faces that cannot hold the answer. Re-profiled at
+    # 13 ms the cost is page faults, clear_page_erms and allocator
+    # walks -- setup, not algorithm. No category names that, so it is
+    # left unclassified rather than kept under a label the code no
+    # longer earns. Unclassified rising here is the honest reading.
     ("sorting", r"decimate::decimate|collapse::decimate",
      "sort over collapse candidates (verified in the source)"),
     ("branch_bookkeeping", r"project::project_mesh|overlay|union_soup",
