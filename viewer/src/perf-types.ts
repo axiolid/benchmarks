@@ -78,6 +78,21 @@ export const CATEGORY_LABELS: Record<string, string> = {
 
 /** What each area actually exercises, for the reader who is not in the code. */
 export const AREA_LABELS: Record<string, { label: string; blurb: string }> = {
+  orient3: { label: "Orient3D", blurb: "Exact 3D orientation on clean input: the filter settles it." },
+  orient3degen: { label: "Orient3D (degenerate)", blurb: "Same predicate, frequent degeneracy: exact arithmetic takes over." },
+  orient2: { label: "Orient2D", blurb: "2D orientation, the most-called predicate in planar code." },
+  incircle: { label: "In-circle", blurb: "Delaunay in-circle test with exact fallback." },
+  insphere: { label: "In-sphere", blurb: "3D in-sphere: the most expensive certified predicate." },
+  hull: { label: "Convex hull", blurb: "Incremental hull of a point cloud, driven by orientation tests." },
+  extrude: { label: "Extrude", blurb: "Profile with holes swept to a solid: triangulation plus side walls." },
+  revolve: { label: "Revolve", blurb: "Profile swept about an axis, station by station." },
+  loft: { label: "Loft", blurb: "Blend through stations: topological stitching, little arithmetic." },
+  offsetsolid: { label: "Offset solid", blurb: "Grow a solid: plane offsetting and face re-intersection." },
+  shell: { label: "Shell", blurb: "Hollow a solid to a wall thickness: offset plus cavity." },
+  frenet: { label: "Frenet frame", blurb: "Frame transport along a 3D spine: integration per evaluation." },
+  arclength: { label: "Arc length", blurb: "Arc-length parameterisation via Gauss-Legendre panels." },
+  curvedist: { label: "Certified curve distance", blurb: "Subdivision to a proven bound between two curves." },
+  curveproject: { label: "Certified projection", blurb: "Point projected onto a curve with a proven bound." },
   raybvh: { label: "Ray/BVH", blurb: "Ray casts against a prebuilt BVH, build excluded." },
   facaderay: { label: "Facade rays", blurb: "Cached ray index over a facade: repeated nearest-hit." },
   handleray: { label: "Handle rays", blurb: "Caller-held index: rays without cache lookup." },

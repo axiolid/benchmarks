@@ -32,7 +32,14 @@ AREAS = ["boolean", "audit", "measure", "levelset", "inspect", "heal", "genus",
          # planar booleans and routing, Minkowski, spatial indexing,
          # field rasterisation and component labelling.
          "minkowski", "minkdiff", "pointindex", "pointnear", "bvhpairs",
-         "overlay", "route", "fieldsample", "components"]
+         "overlay", "route", "fieldsample", "components",
+         # Third wave: the exact-arithmetic substrate, split by whether
+         # the fast filter settles or defers to exact evaluation.
+         "orient3", "orient3degen", "orient2", "incircle", "insphere",
+         # Solid construction -- the shape least represented above.
+         "hull", "extrude", "revolve", "loft", "offsetsolid", "shell",
+         # Parametric evaluation and certified refinement.
+         "frenet", "arclength", "curvedist", "curveproject"]
 
 # Ordered: first match wins, so narrower patterns must precede broader
 # ones. Each entry is (category, regex, why) -- the reason is carried
@@ -47,6 +54,30 @@ AREAS = ["boolean", "audit", "measure", "levelset", "inspect", "heal", "genus",
 # honest but useless; guessing from names would have been useless AND
 # misleading.
 DOMAIN_RULES = [
+    # earcut is the ear-clipping triangulator. extrude and loft spend
+    # most of their time there, and it profiled 90%+ unclassified
+    # because no rule named it. It is polygon triangulation: the work
+    # is repeated point-in-triangle and orientation tests.
+    ("math", r"earcut",
+     "ear-clipping triangulation: point-in-triangle and orientation tests"),
+    # frenet::integrate and magnus_generator are the Magnus-expansion
+    # ODE integrator driving frame transport, plus the libm sincos it
+    # calls per step. Inlined and LLVM-renamed, so match both forms.
+    ("math", r"frenet.*integrate|magnus_generator|__sincos|__sin_fma|__cos_fma",
+     "Magnus-expansion frame integration and its trigonometry"),
+    # Certified NURBS refinement evaluates B-spline jets repeatedly.
+    ("math", r"eval_homogeneous|bspline_jet|piecewise_bezier",
+     "B-spline evaluation under certified refinement"),
+    # The certified subdivision itself: de Casteljau blending, interval
+    # arithmetic and cell midpoints. This is the proof machinery that
+    # makes the bound certified rather than sampled.
+    ("math", r"certified_bezier|HomogeneousPoint|Interval::|Cell::|SplineAxis",
+     "certified subdivision: de Casteljau blending and interval bounds"),
+    # loft::loft itself is ring-to-ring stitching: index bookkeeping,
+    # not arithmetic. Listed before the earcut rule would be wrong --
+    # it is a separate cost and gets its own category.
+    ("branch_bookkeeping", r"loft::loft",
+     "ring-to-ring stitching: index bookkeeping, not arithmetic"),
     # sample_triangles_cpu inlines its whole rasteriser, so no inner
     # symbol survives and the arm profiled 99% unclassified. The work is
     # a scatter over grid cells: pointer chasing, not arithmetic.

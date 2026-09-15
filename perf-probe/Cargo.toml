@@ -32,12 +32,15 @@ axiolid-levelset = { path = "../../kernel/crates/algorithms/sampled/levelset" }
 axiolid-minkowski = { path = "../../kernel/crates/algorithms/discrete/minkowski" }
 axiolid-field = { path = "../../kernel/crates/representations/sampled/field" }
 axiolid-field-ops = { path = "../../kernel/crates/algorithms/sampled/field" }
+axiolid-predicates = { path = "../../kernel/crates/algorithms/predicates" }
+axiolid-construct = { path = "../../kernel/crates/algorithms/construction/construct" }
+axiolid-nurbs = { path = "../../kernel/crates/algorithms/parametric/nurbs" }
+axiolid-curve = { path = "../../kernel/crates/representations/analytic/curve" }
 axiolid-overlay = { path = "../../kernel/crates/algorithms/planar/overlay" }
 axiolid-route = { path = "../../kernel/crates/algorithms/planar/route" }
 axiolid-topology = { path = "../../kernel/crates/representations/topology" }
 axiolid-brep-audit = { path = "../../kernel/crates/algorithms/repair/brep-audit" }
 axiolid-evaluate = { path = "../../kernel/crates/algorithms/parametric/evaluate" }
-axiolid-curve = { path = "../../kernel/crates/representations/analytic/curve" }
 axiolid-surface = { path = "../../kernel/crates/representations/analytic/surface" }
 axiolid-primitive = { path = "../../kernel/crates/representations/analytic/primitive" }
 axiolid-profile = { path = "../../kernel/crates/representations/region/profile" }

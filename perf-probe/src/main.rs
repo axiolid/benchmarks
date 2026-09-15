@@ -10,7 +10,7 @@
 
 use axiolid_contracts::ExecutionOptions;
 use axiolid_core::Aabb;
-use axiolid_core::{BooleanOperator, Frame3, Point2, Point3, Tolerance, Vec3};
+use axiolid_core::{BooleanOperator, Frame2, Frame3, Point2, Point3, Tolerance, Vec2, Vec3};
 use axiolid_mesh::{audit_mesh, TriMesh};
 use axiolid_mesh_boolean_boolmesh::BoolmeshBoolean;
 use axiolid_mesh_boolean_contract::MeshBoolean;
@@ -87,6 +87,65 @@ fn tri_items(m: &TriMesh) -> Vec<SpatialItem<usize>> {
             SpatialItem::new(i, Aabb { min: lo, max: hi })
         })
         .collect()
+}
+
+/// Annulus profile: an outer ring with `holes` circular holes punched
+/// out. Holes matter because they force real triangulation rather than
+/// a fan, which is what production profiles look like.
+fn ring_with_holes(segments: usize, holes: usize) -> axiolid_construct::profile::Rings {
+    let circle = |cx: f64, cy: f64, r: f64, n: usize, cw: bool| -> Vec<Point2> {
+        (0..n)
+            .map(|i| {
+                let mut t = i as f64 / n as f64 * std::f64::consts::TAU;
+                if cw {
+                    t = -t;
+                }
+                Point2::new(cx + r * t.cos(), cy + r * t.sin())
+            })
+            .collect()
+    };
+    axiolid_construct::profile::Rings {
+        outer: circle(0.0, 0.0, 4.0, segments, false),
+        holes: (0..holes)
+            .map(|i| {
+                let a = i as f64 / holes.max(1) as f64 * std::f64::consts::TAU;
+                circle(a.cos() * 2.0, a.sin() * 2.0, 0.5, 12, true)
+            })
+            .collect(),
+    }
+}
+
+/// Axis-aligned cube as a face-list solid, for the offset arms.
+fn box_polyhedron(h: f64) -> axiolid_construct::polyhedron::Polyhedron {
+    let v = |x: f64, y: f64, z: f64| Point3::new(x * h, y * h, z * h);
+    let faces = vec![
+        vec![v(-1.0, -1.0, -1.0), v(-1.0, 1.0, -1.0), v(1.0, 1.0, -1.0), v(1.0, -1.0, -1.0)],
+        vec![v(-1.0, -1.0, 1.0), v(1.0, -1.0, 1.0), v(1.0, 1.0, 1.0), v(-1.0, 1.0, 1.0)],
+        vec![v(-1.0, -1.0, -1.0), v(1.0, -1.0, -1.0), v(1.0, -1.0, 1.0), v(-1.0, -1.0, 1.0)],
+        vec![v(1.0, -1.0, -1.0), v(1.0, 1.0, -1.0), v(1.0, 1.0, 1.0), v(1.0, -1.0, 1.0)],
+        vec![v(1.0, 1.0, -1.0), v(-1.0, 1.0, -1.0), v(-1.0, 1.0, 1.0), v(1.0, 1.0, 1.0)],
+        vec![v(-1.0, 1.0, -1.0), v(-1.0, -1.0, -1.0), v(-1.0, -1.0, 1.0), v(-1.0, 1.0, 1.0)],
+    ];
+    axiolid_construct::polyhedron::Polyhedron::new(faces).expect("unit cube is a valid solid")
+}
+
+/// Cubic Bezier in 3D, offset in y so two of them do not coincide.
+fn bezier3(dy: f64) -> axiolid_curve::BSplineCurve<Point3> {
+    axiolid_curve::BSplineCurve {
+        degree: 3,
+        control_points: vec![
+            Point3::new(0.0, dy, 0.0),
+            Point3::new(1.0, dy + 1.0, 0.5),
+            Point3::new(2.0, dy - 1.0, 1.0),
+            Point3::new(3.0, dy, 1.5),
+        ],
+        knots: vec![0.0, 1.0],
+        multiplicities: vec![4, 4],
+        weights: None,
+        closed: false,
+        self_intersect: Some(false),
+        knot_spec: axiolid_curve::KnotSpec::PiecewiseBezier,
+    }
 }
 
 fn main() {
@@ -348,6 +407,236 @@ fn main() {
                     tol,
                 );
                 std::hint::black_box(&r);
+            }
+        }
+        "orient3" => {
+            // Exact orientation on clean input: the filter should settle
+            // almost everything, so this is the fast path.
+            use axiolid_predicates::scene::{orient3_scene, DegeneracyRate};
+            let scene = orient3_scene(40_000, DegeneracyRate::None, 0x51ED_2701);
+            for _ in 0..120 {
+                for c in &scene {
+                    std::hint::black_box(axiolid_predicates::orient3d(c[0], c[1], c[2], c[3]));
+                }
+            }
+        }
+        "orient3degen" => {
+            // Same predicate, frequently degenerate input: the filter
+            // defers and exact arithmetic dominates. Paired with orient3
+            // so the cost of certainty is visible rather than averaged
+            // into one number.
+            use axiolid_predicates::scene::{orient3_scene, DegeneracyRate};
+            let scene = orient3_scene(40_000, DegeneracyRate::Frequent, 0x51ED_2701);
+            for _ in 0..120 {
+                for c in &scene {
+                    std::hint::black_box(axiolid_predicates::orient3d(c[0], c[1], c[2], c[3]));
+                }
+            }
+        }
+        "orient2" => {
+            // 2D orientation: the most-called predicate in planar code.
+            use axiolid_predicates::scene::{orient2_scene, DegeneracyRate};
+            let scene = orient2_scene(60_000, DegeneracyRate::Occasional, 0x51ED_2701);
+            for _ in 0..120 {
+                for c in &scene {
+                    std::hint::black_box(axiolid_predicates::orient2d(c[0], c[1], c[2]));
+                }
+            }
+        }
+        "incircle" => {
+            // Delaunay in-circle test on a 2D scene, reusing the orient2
+            // generator: four points, so the last is the query.
+            use axiolid_predicates::scene::{orient2_scene, DegeneracyRate};
+            let scene = orient2_scene(30_000, DegeneracyRate::Occasional, 0xC0FF_EE01);
+            for _ in 0..120 {
+                for w in scene.windows(2) {
+                    let (a, b) = (w[0], w[1]);
+                    std::hint::black_box(axiolid_predicates::incircle(a[0], a[1], a[2], b[0]));
+                }
+            }
+        }
+        "insphere" => {
+            // 3D in-sphere: the most expensive certified predicate, and
+            // the one that drives Delaunay tetrahedralisation.
+            use axiolid_predicates::scene::{orient3_scene, DegeneracyRate};
+            let scene = orient3_scene(20_000, DegeneracyRate::Occasional, 0xC0FF_EE01);
+            for _ in 0..120 {
+                for w in scene.windows(2) {
+                    let (a, b) = (w[0], w[1]);
+                    std::hint::black_box(axiolid_predicates::insphere(
+                        a[0], a[1], a[2], a[3], b[0],
+                    ));
+                }
+            }
+        }
+        "hull" => {
+            // Convex hull of a point cloud: the classic incremental
+            // construction, dominated by orientation predicates.
+            let mut pts = Vec::new();
+            for i in 0..3_000u32 {
+                let f = i as f64 * 0.7391;
+                pts.push(Point3::new(f.sin() * 2.0, (f * 1.7).cos() * 2.0, (f * 2.3).sin() * 2.0));
+            }
+            for _ in 0..8 {
+                let h = axiolid_construct::hull::convex_hull(&pts);
+                debug_assert!(h.is_ok(), "hull arm must produce a hull");
+                std::hint::black_box(h.ok());
+            }
+        }
+        "extrude" => {
+            // Profile with holes swept to a solid: triangulation plus
+            // side-wall generation, the bread and butter of BIM geometry.
+            let rings = ring_with_holes(96, 16);
+            for _ in 0..4_000 {
+                let m = axiolid_construct::extrude::extrude_profile(
+                    &rings,
+                    Vec3::new(0.0, 0.0, 1.0),
+                    3.0,
+                    Tolerance::MILLIMETRE,
+                );
+                debug_assert!(m.is_ok(), "extrude arm must produce a solid");
+                std::hint::black_box(m.ok());
+            }
+        }
+        "revolve" => {
+            // Sweep a profile about an axis: trigonometry per station
+            // times profile size, a different shape from extrude.
+            let rings = ring_with_holes(48, 8);
+            for _ in 0..200 {
+                let m = axiolid_construct::revolve::revolve(
+                    &rings,
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    std::f64::consts::PI * 1.5,
+                    Tolerance::MILLIMETRE,
+                );
+                debug_assert!(m.is_ok(), "revolve arm must produce a solid");
+                std::hint::black_box(m.ok());
+            }
+        }
+        "loft" => {
+            // Blend a profile through stations: purely topological
+            // stitching between rings, almost no arithmetic.
+            let rings = ring_with_holes(64, 10);
+            let stations: Vec<_> = (0..24)
+                .map(|i| {
+                    let t = i as f64 * 0.25;
+                    axiolid_construct::loft::place(&rings, move |p| {
+                        Point3::new(p.x + t * 0.1, p.y, t)
+                    })
+                })
+                .collect();
+            for _ in 0..3_000 {
+                let m = axiolid_construct::loft::loft(&rings, &stations, false);
+                debug_assert!(m.is_ok(), "loft arm must produce a solid");
+                std::hint::black_box(m.ok());
+            }
+        }
+        "offsetsolid" => {
+            // Grow a solid by a distance: plane offsetting plus face
+            // re-intersection, where the work is planar algebra.
+            let solid = box_polyhedron(1.0);
+            for _ in 0..40_000 {
+                let r = axiolid_construct::offset::offset_solid(
+                    &solid,
+                    0.1,
+                    axiolid_construct::offset::OffsetDirection::Outward,
+                );
+                debug_assert!(r.is_ok(), "offset arm must produce a solid");
+                std::hint::black_box(r.ok());
+            }
+        }
+        "shell" => {
+            // Hollow a solid to a wall thickness: the inward offset plus
+            // cavity construction, so roughly twice the offset work.
+            let solid = box_polyhedron(1.0);
+            for _ in 0..2_000 {
+                let r = axiolid_construct::offset::shell_solid(&solid, 0.1);
+                debug_assert!(r.is_ok(), "shell arm must produce a solid");
+                std::hint::black_box(r.ok());
+            }
+        }
+        "frenet" => {
+            // Frame transport along a curved 3D spine: numerical
+            // integration per evaluation, so cost scales with arc length
+            // rather than control-point count.
+            use axiolid_curve::{CurvatureLaw, Intrinsic3};
+            let curve = Intrinsic3::new(
+                Frame3 {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    x: Vec3::X,
+                    y: Vec3::Y,
+                    z: Vec3::Z,
+                },
+                CurvatureLaw::circular(0.35),
+                CurvatureLaw::circular(0.12),
+                40.0,
+            );
+            for i in 0..16_000 {
+                let s = (i % 400) as f64 * 0.1;
+                let f = axiolid_evaluate::frenet::frenet_frame(&curve, s);
+                debug_assert!(f.is_ok(), "frenet arm must evaluate");
+                std::hint::black_box(f.ok());
+            }
+        }
+        "arclength" => {
+            // Arc-length parameterisation of a 2D intrinsic curve: the
+            // Gauss-Legendre panels that frenet also pays, isolated in 2D
+            // so the integration cost shows without frame transport.
+            use axiolid_curve::{CurvatureLaw, Intrinsic2};
+            let curve = Intrinsic2::new(
+                Frame2 {
+                    origin: Point2::new(0.0, 0.0),
+                    x: Vec2::X,
+                    y: Vec2::Y,
+                },
+                CurvatureLaw::circular(0.25),
+                40.0,
+            );
+            for i in 0..60_000 {
+                let s = (i % 400) as f64 * 0.1;
+                let p = axiolid_evaluate::arc_length::intrinsic_point(&curve, s);
+                debug_assert!(p.is_ok(), "arclength arm must evaluate");
+                std::hint::black_box(p.ok());
+            }
+        }
+        "curvedist" => {
+            // Certified distance between two curves: subdivision to a
+            // proven bound, so the cost is refinement depth, not a fixed
+            // sample count. The exact-arithmetic end of the kernel.
+            use axiolid_nurbs::CertifiedProjectionOptions;
+            let a = bezier3(0.0);
+            let b = bezier3(1.3);
+            let opts = CertifiedProjectionOptions::new(
+                Tolerance::new(1e-4, 1e-10).unwrap(),
+                65_536,
+                64,
+            )
+            .unwrap();
+            for _ in 0..40 {
+                let d = axiolid_nurbs::distance_curve3_certified(&a, &b, opts);
+                debug_assert!(d.is_ok(), "curvedist arm must certify a distance: {:?}", d.as_ref().err());
+                std::hint::black_box(d.ok());
+            }
+        }
+        "curveproject" => {
+            // Certified point projection onto a curve: same refinement
+            // machinery as curvedist but against a fixed target, so the
+            // two separate search cost from pair-subdivision cost.
+            use axiolid_nurbs::CertifiedProjectionOptions;
+            let c = bezier3(0.0);
+            let opts = CertifiedProjectionOptions::new(
+                Tolerance::new(1e-4, 1e-10).unwrap(),
+                65_536,
+                64,
+            )
+            .unwrap();
+            for i in 0..400 {
+                let f = i as f64 * 0.01;
+                let t = Point3::new(0.5 + f, 0.4, 0.3);
+                let r = axiolid_nurbs::project_curve3_certified(&c, t, opts);
+                debug_assert!(r.is_ok(), "curveproject arm must certify");
+                std::hint::black_box(r.ok());
             }
         }
         "minkowski" => {
