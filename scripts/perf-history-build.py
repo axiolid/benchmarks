@@ -19,6 +19,7 @@ REVS = [
     ("c8e150a", "Concavity prune", "decompose: bounding-sphere bound skips faces that cannot hold the worst concavity."),
     ("8f1683e", "Stored face count", "genus: face_count recorded during the build, not recounted from the edge map."),
     ("f038fdc", "CSR adjacency", "mesh: edge adjacency as CSR arrays instead of a BTreeMap of vectors."),
+    ("efe379e", "Counting sort", "mesh: two stable counting passes replace the comparison sort."),
 ]
 
 rows = list(csv.DictReader(open(SRC)))
