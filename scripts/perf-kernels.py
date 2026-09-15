@@ -127,6 +127,19 @@ def main():
     except json.JSONDecodeError:
         pass
 
+    # Axiolid must always appear, even when it owns too few samples to
+    # profile: it is the subject of the comparison. Its wall time comes
+    # from the harness regardless, so a missing profile costs the
+    # breakdown, not the row -- and without this the shadow dropdown is
+    # greyed out for the one kernel the reader most wants behind.
+    if "axiolid" not in owned:
+        kernels.append({
+            "kernel": "axiolid",
+            "profile_share_pct": 0.0,
+            "breakdown_trustworthy": False,
+            "categories": [],
+        })
+
     # Harness kernel ids -> profiler owner ids, so the UI can join them.
     ALIAS = {"cgal": "cgal", "lite_kernel": "ifclite",
              "raw_boolmesh": "boolmesh", "axiolid": "axiolid",
@@ -140,6 +153,27 @@ def main():
                 # speed -- reporting it bare would invert the ranking.
                 entry["rows_done"] = done.get(harness_id, 0)
                 entry["rows_total"] = rowcount
+
+    # Per-workload times, so kernels can be compared on the SAME work.
+    # The 16 areas are axiolid-internal probes -- CGAL has no "Genus"
+    # entry point -- but every kernel runs these three boolean
+    # workloads, which is what makes them comparable at all.
+    per_workload = {}
+    for row in rows:
+        label = f"{row.get('workload')} n={row.get('n')}"
+        for key, value in row.items():
+            if key in ("workload", "n"):
+                continue
+            owner = ALIAS.get(key)
+            if owner is None:
+                continue
+            per_workload.setdefault(owner, {})[label] = (
+                None if value is None else float(value)
+            )
+
+    for entry in kernels:
+        if entry["kernel"] in per_workload:
+            entry["workloads"] = per_workload[entry["kernel"]]
 
     # Kernels the UI may offer but this binary cannot measure. Naming them
     # keeps a missing dependency visible instead of looking like a kernel

@@ -17,6 +17,15 @@ import type { PerfDoc, KernelsDoc } from "@/perf-types";
 
 const colour = (c: string) => CATEGORY_COLORS[c] ?? "#64748b";
 
+/** One colour per kernel, for the side-by-side workload view. */
+const KERNEL_COLORS: Record<string, string> = {
+  axiolid: "#22c55e",
+  cgal: "#ef4444",
+  occt: "#3b82f6",
+  ifclite: "#f59e0b",
+  boolmesh: "#a855f7",
+  manifold: "#14b8a6",
+};
 /** Human labels for kernels the comparison harness can measure. */
 const KERNEL_LABELS: Record<string, string> = {
   axiolid: "Axiolid",
@@ -97,6 +106,39 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
     });
   }, [kernels, kernel, mode]);
 
+
+  // Apples-to-apples rows: one bar per shared workload, each kernel a
+  // series. The 16 areas cannot do this -- they are axiolid-internal
+  // probes with no CGAL or OCCT equivalent -- but every kernel runs
+  // these same boolean workloads.
+  const workloadRows = useMemo(() => {
+    if (!kernels || kernel !== "workloads") return null;
+    const names = new Set<string>();
+    kernels.kernels.forEach((k) =>
+      Object.keys(k.workloads ?? {}).forEach((w) => names.add(w)),
+    );
+    return [...names].map((w) => {
+      const row: Record<string, string | number> = { area: w, id: w, wall: 0 };
+      // Relative mode charts each kernel as a multiple of the fastest on
+      // THAT workload. In absolute ms the kernels span ~1000x, so the
+      // quick ones render sub-pixel; "x slower than best" keeps every
+      // kernel legible and answers "who wins here" directly.
+      const times = kernels.kernels
+        .map((k) => k.workloads?.[w])
+        .filter((v): v is number => typeof v === "number" && v > 0);
+      const best = times.length ? Math.min(...times) : 0;
+      kernels.kernels.forEach((k) => {
+        const v = k.workloads?.[w];
+        // Null means the kernel could not complete it. Omit the key so
+        // the bar is absent rather than drawn as a zero -- zero would
+        // read as "instant", which is the opposite of the truth.
+        if (typeof v !== "number") return;
+        row[k.kernel] = mode === "absolute" ? v : best > 0 ? v / best : 0;
+      });
+      return row;
+    });
+  }, [kernels, kernel, mode]);
+
   const rows = useMemo(() => {
     const pctOf = (a: PerfDoc["areas"][number], name: string) =>
       a.categories.find((c) => c.name === name)?.pct ?? 0;
@@ -141,7 +183,7 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
   // the stack showing the other kernel's total, which only means
   // anything when the axis is milliseconds.
   const shown = useMemo(() => {
-    const base = kernelRows ?? rows;
+    const base = workloadRows ?? kernelRows ?? rows;
     const ghost =
       shadow === "none" || mode !== "absolute" || !kernels
         ? null
@@ -152,11 +194,14 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
     // cost 6362ms in every row.
     if (!ghost?.suite_ms || !kernelRows) return base;
     return base.map((r) => ({ ...r, shadow: ghost.suite_ms }));
-  }, [kernelRows, rows, shadow, mode, kernels]);
+  }, [workloadRows, kernelRows, rows, shadow, mode, kernels]);
 
   // In kernel mode the categories come from the kernel profiles, which
   // use the same names as the area data where they overlap.
   const shownSeries = useMemo(() => {
+    // Workload view: each KERNEL is a series, so bars sit side by side
+    // on identical work.
+    if (workloadRows) return (kernels?.kernels ?? []).map((k) => k.kernel);
     if (!kernelRows) return series;
     const names = new Set<string>();
     kernelRows.forEach((r) =>
@@ -167,10 +212,13 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
       }),
     );
     return [...names];
-  }, [kernelRows, series]);
+  }, [workloadRows, kernelRows, series, kernels]);
 
   const area = doc.areas.find((a) => a.area === openArea) ?? null;
-  const label = (c: string) => CATEGORY_LABELS[c] ?? c;
+  // In the workload view the series are kernels, so the legend must
+  // name kernels rather than cost categories.
+  const label = (c: string) =>
+    (workloadRows ? KERNEL_LABELS[c] : CATEGORY_LABELS[c]) ?? CATEGORY_LABELS[c] ?? c;
 
   return (
     <div className="space-y-6">
@@ -201,7 +249,8 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
           aria-label="Kernel"
         >
           <option value="axiolid">Axiolid (per area)</option>
-          <option value="all">All kernels</option>
+          <option value="all">All kernels (whole suite)</option>
+          <option value="workloads">Same workloads (apples to apples)</option>
           {kernels?.kernels.map((k) => (
             <option key={k.kernel} value={k.kernel}>
               {KERNEL_LABELS[k.kernel] ?? k.kernel}
@@ -218,15 +267,17 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
         <select
           value={shadow}
           onChange={(e) => setShadow(e.target.value)}
-          disabled={mode !== "absolute" || kernel === "axiolid"}
+          disabled={mode !== "absolute" || kernel === "axiolid" || kernel === "workloads"}
           className="rounded-md border bg-background px-2 py-1 disabled:opacity-40"
           aria-label="Shadow kernel"
           title={
-            mode !== "absolute"
-              ? "Shadow needs the millisecond axis: a total cannot sit behind percentages"
+            kernel === "workloads"
+              ? "Not needed here: every kernel is already a bar on the same workload"
               : kernel === "axiolid"
-                ? "Shadow is a whole-suite total; pick a kernel view to compare like with like"
-                : "Draw one kernel's full suite time behind the bars"
+                ? "Axiolid is per-area; the shadow is a whole-suite total. Use Same workloads to compare kernels."
+                : mode === "absolute"
+                  ? "Draw one kernel's full suite time behind the bars"
+                  : "Shadow needs the millisecond axis"
           }
         >
           <option value="none">No shadow</option>
@@ -293,19 +344,42 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
           </button>
         )}
         <span className="text-muted-foreground">
-          {rows.length} of {doc.areas.length} areas
+          {workloadRows
+            ? `${workloadRows.length} shared workloads`
+            : `${rows.length} of ${doc.areas.length} areas`}
         </span>
+        {workloadRows ? (
+          <span className="text-amber-400/80">
+            {mode === "absolute"
+              ? "absolute ms: kernels differ by ~1000x, so fast ones are thin"
+              : "x slower than the fastest kernel on each workload"}
+          </span>
+        ) : null}
       </div>
 
       <div className="rounded-lg border bg-card p-4">
-        <ResponsiveContainer width="100%" height={Math.max(300, rows.length * 34)}>
+        <ResponsiveContainer width="100%" height={Math.max(300, shown.length * (workloadRows ? 76 : 34))}>
           <BarChart data={shown} layout="vertical" margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
             <XAxis
               type="number"
-              domain={mode === "relative" ? [0, 100] : [0, "auto"]}
-              ticks={mode === "relative" ? [0, 25, 50, 75, 100] : undefined}
-              tickFormatter={(v: number) => (mode === "relative" ? `${v}%` : `${Math.round(v)}ms`)}
+              // Linear: a log scale silently renders nothing here, and
+              // an unreadable-but-honest axis beats an empty chart.
+              domain={
+                workloadRows
+                  ? [0, "auto"]
+                  : mode === "relative"
+                    ? [0, 100]
+                    : [0, "auto"]
+              }
+              ticks={!workloadRows && mode === "relative" ? [0, 25, 50, 75, 100] : undefined}
+              tickFormatter={(v: number) =>
+                workloadRows && mode === "relative"
+                  ? `${v}x`
+                  : mode === "relative"
+                    ? `${v}%`
+                    : `${Math.round(v)}ms`
+              }
               fontSize={12}
             />
             <YAxis type="category" dataKey="area" width={110} interval={0} fontSize={12} />
@@ -342,8 +416,8 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
               <Bar
                 key={c}
                 dataKey={c}
-                stackId="a"
-                fill={CATEGORY_COLORS[c] ?? "#94a3b8"}
+                stackId={workloadRows ? undefined : "a"}
+                fill={(workloadRows ? KERNEL_COLORS[c] : CATEGORY_COLORS[c]) ?? "#94a3b8"}
                 // Muted rather than hidden: dropping the other segments
                 // would rescale the bar and imply the area got cheaper.
                 fillOpacity={!focus || focus === c ? 1 : 0.15}

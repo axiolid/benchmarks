@@ -152,6 +152,10 @@ export interface KernelProfile {
    *  small suite_ms mean "did less", not "was faster". */
   rows_done?: number;
   rows_total?: number;
+  /** Per-workload milliseconds, keyed "offset n=4". Null where the
+   *  kernel could not complete that workload. This is the only
+   *  apples-to-apples axis: every kernel runs these same rows. */
+  workloads?: Record<string, number | null>;
   categories: { name: string; pct: number }[];
 }
 

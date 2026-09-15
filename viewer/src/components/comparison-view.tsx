@@ -29,6 +29,24 @@ const WORKLOADS: Record<string, { label: string; caption: string }> = {
   },
 };
 
+/** Format one exactness cell.
+ *
+ * The harness reports each residual as an object carrying the metric
+ * it was measured in. It used to be a bare number, and this view still
+ * called toExponential on it directly -- which threw and took the whole
+ * app down, not just this section.
+ */
+function fmtResidual(cell: unknown): string {
+  if (typeof cell === "number") return cell.toExponential(2);
+  if (cell && typeof cell === "object" && "residual" in cell) {
+    const r = (cell as { residual: unknown }).residual;
+    if (typeof r === "number") return r.toExponential(2);
+  }
+  // Unknown shape: say so rather than crash. A cell that cannot be
+  // formatted is a data problem, not a reason to lose the page.
+  return "n/a";
+}
+
 export function ComparisonView() {
   const [data, setData] = useState<Results | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -252,7 +270,7 @@ export function ComparisonView() {
                                       {row[k] == null ? (
                                         <span className="text-muted-foreground">not scored</span>
                                       ) : (
-                                        (row[k] as number).toExponential(2)
+                                        fmtResidual(row[k])
                                       )}
                                     </td>
                                   ))}

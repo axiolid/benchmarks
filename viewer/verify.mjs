@@ -255,6 +255,31 @@ console.log("screenshot: /tmp/perf-view.png");
 
 
 
+
+// --- kernel comparison section ---
+// This section had no coverage, which is how it shipped bricked.
+const cmpNav = await evalJs(`(() => {
+  const b = [...document.querySelectorAll("nav button")]
+    .find((e) => /comparison/i.test(e.textContent || ""));
+  if (!b) return "no nav";
+  const r = b.getBoundingClientRect();
+  return JSON.stringify({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+})()`);
+const cmpP = JSON.parse(cmpNav && cmpNav !== "no nav" ? cmpNav : "{}");
+if (cmpP.x) {
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: cmpP.x, y: cmpP.y, button: "left", clickCount: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: cmpP.x, y: cmpP.y, button: "left", clickCount: 1 });
+}
+// The harness runs a real benchmark, so give it room.
+await new Promise((r) => setTimeout(r, 25000));
+const cmpTxt = await evalJs(`(() => {
+  const m = document.querySelector("main") || document.body;
+  return (m.innerText || "").replace(/\s+/g, " ").slice(0, 600);
+})()`);
+check("kernel comparison is not an error card", !/Benchmark failed|harness exited/i.test(cmpTxt), cmpTxt.slice(0, 200));
+check("kernel comparison shows a table", /axiolid/i.test(cmpTxt), cmpTxt.slice(0, 200));
+
+
 // --- ray paths section ---
 const rp = await evalJs(`(() => {
   const b = [...document.querySelectorAll("nav button")]
@@ -431,6 +456,56 @@ check("OCCT appears as a measured kernel", /Open CASCADE/i.test(covTxt), "");
 const shot5 = await send("Page.captureScreenshot", { format: "png" });
 writeFileSync("/tmp/allkernels.png", Buffer.from(shot5.data, "base64"));
 console.log("all-kernels screenshot: /tmp/allkernels.png");
+
+
+// Apples-to-apples view: one bar per shared workload, kernels side by
+// side. This is the only axis on which kernels are comparable.
+const wl = await evalJs(`(() => {
+  const k = [...document.querySelectorAll("select")]
+    .find((s) => s.getAttribute("aria-label") === "Kernel");
+  if (!k) return JSON.stringify({ ok: false });
+  k.value = "workloads";
+  k.dispatchEvent(new Event("change", { bubbles: true }));
+  return JSON.stringify({ ok: true });
+})()`);
+await new Promise((r) => setTimeout(r, 900));
+const wlTxt = await evalJs(`(() => {
+  // Read axis ticks directly: innerText collapses "=" out of labels.
+  const ticks = [...document.querySelectorAll(".recharts-yAxis text")]
+    .map((t) => t.textContent || "").join("|");
+  const bars = document.querySelectorAll(".recharts-bar-rectangle").length;
+  const legend = [...document.querySelectorAll(".recharts-legend-item-text")]
+    .map((t) => t.textContent || "").join("|");
+  const painted = [...document.querySelectorAll(".recharts-bar-rectangle path")]
+    .filter((p) => { const b = p.getBBox(); return b.width > 0.5 && b.height > 0.5; }).length;
+  return JSON.stringify({ txt: ticks, legend, bars, painted });
+})()`);
+const wlp = JSON.parse(wlTxt || "{}");
+check("workload view charts shared workloads", /offset n/i.test(wlp.txt || "") && /rotated n/i.test(wlp.txt || ""), (wlp.txt || "").slice(0, 160));
+// Bars must have real geometry: a bad axis domain renders zero-width
+// bars while the element count stays non-zero, which hid an empty chart.
+check("workload view draws kernel bars", (wlp.painted ?? 0) > 6,
+  `painted=${wlp.painted} of ${wlp.bars}`);
+// Axiolid must be IN the comparison: it owns too few profile samples
+// to earn a row on its own, and was silently dropped -- which is why
+// the shadow was greyed out for the one kernel that matters most.
+check("axiolid is in the kernel comparison", /Axiolid/i.test(wlp.legend || ""), (wlp.txt || "").slice(0, 200));
+check("competitors are in the same chart",
+  /CGAL/i.test(wlp.legend || "") && /Open CASCADE/i.test(wlp.legend || ""), "");
+const shot6 = await send("Page.captureScreenshot", { format: "png" });
+writeFileSync("/tmp/workloads.png", Buffer.from(shot6.data, "base64"));
+console.log("workload screenshot: /tmp/workloads.png");
+// Relative mode is the legible one: capture it too.
+await evalJs(`(() => {
+  const b = [...document.querySelectorAll("button")]
+    .find((e) => /% of area/i.test(e.textContent || ""));
+  if (b) b.click();
+  return "ok";
+})()`);
+await new Promise((r) => setTimeout(r, 700));
+const shot7 = await send("Page.captureScreenshot", { format: "png" });
+writeFileSync("/tmp/workloads_rel.png", Buffer.from(shot7.data, "base64"));
+console.log("workload relative: /tmp/workloads_rel.png");
 
 const failed = checks.filter((c) => !c.ok);
 console.log(`\n${checks.length - failed.length}/${checks.length} checks passed`);
