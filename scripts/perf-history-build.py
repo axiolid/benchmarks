@@ -17,6 +17,7 @@ REVS = [
     ("a24f8a6", "Counting sort", "audit_mesh edge grouping: comparison sort to two-pass counting sort."),
     ("b47274d", "Hashed weld caches", "levelset, refine, decompose: BTreeMap weld caches to hash maps."),
     ("c8e150a", "Concavity prune", "decompose: bounding-sphere bound skips faces that cannot hold the worst concavity."),
+    ("8f1683e", "Stored face count", "genus: face_count recorded during the build, not recounted from the edge map."),
 ]
 
 rows = list(csv.DictReader(open(SRC)))
