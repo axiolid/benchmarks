@@ -33,7 +33,9 @@ function runBenchmark(reps) {
   return new Promise((ok, fail) => {
     const child = spawn(
       "cargo",
-      ["run", "--release", "--quiet", "--", String(reps), "--json"],
+      // `--bin` explicitly: the crate also ships src/bin/ helpers, so a
+      // bare `cargo run` is ambiguous and exits 101.
+      ["run", "--release", "--quiet", "--bin", "axiolid-benchmarks", "--", String(reps), "--json"],
       {
         cwd: CRATE,
         // Only override cargo directories when the environment asks for it.

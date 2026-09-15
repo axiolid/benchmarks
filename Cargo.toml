@@ -1,5 +1,9 @@
 [package]
 name = "axiolid-benchmarks"
+# src/bin/ helpers (dump_spheres, profile_sphere) make a bare `cargo run`
+# ambiguous, which broke the viewer's harness with exit 101. Name the
+# real entry point so `cargo run` keeps working for every caller.
+default-run = "axiolid-benchmarks"
 version = "0.1.0"
 edition = "2021"
 publish = false
