@@ -21,7 +21,7 @@ AREAS='boolean audit measure levelset inspect heal genus decimate refine raymesh
 TIMEFORMAT=%R
 echo 'rev,area,samples' > $OUT
 
-for REV in 5e52dde a24f8a6 b47274d c8e150a 8f1683e; do
+for REV in 5e52dde a24f8a6 b47274d c8e150a 8f1683e f038fdc; do
   cd $K && git checkout -q --detach $REV
   cd $P && cargo build --release >/dev/null 2>&1 || { echo "BUILD FAILED $REV" >&2; continue; }
   for A in $AREAS; do
