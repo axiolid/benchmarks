@@ -113,3 +113,22 @@ export interface HistoryDoc {
   noiseFloorPct: number;
   reps: number;
 }
+
+/** One way of casting rays, measured against the others. */
+export interface RayPathVariant {
+  variant: string;
+  note: string;
+  ms: number;
+  band: [number, number];
+  speedup: number;
+  real: boolean;
+}
+
+export interface RayPathsDoc {
+  noiseFloorPct: number;
+  reps: number;
+  rays: number;
+  triangles: number;
+  crossoverRays: number;
+  variants: RayPathVariant[];
+}

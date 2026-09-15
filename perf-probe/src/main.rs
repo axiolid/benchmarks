@@ -283,6 +283,25 @@ fn main() {
             }
             println!("facaderay hits={acc}");
         }
+        "handleray" => {
+            // The zero-bookkeeping path: build once, cast many. No
+            // digest per call, no lock.
+            use axiolid::ray_index::MeshRayIndex;
+            let m = sphere(6, 1.0, 0.0);
+            let index = MeshRayIndex::build(&m, tol);
+            let mut hits = 0usize;
+            for i in 0..2000 {
+                let t = i as f64 * 0.001;
+                let ray = axiolid_core::Ray3 {
+                    origin: Point3::new(3.0 * t.cos(), 3.0 * t.sin(), 0.25),
+                    direction: Point3::new(-t.cos(), -t.sin(), 0.0) - Point3::ZERO,
+                };
+                if matches!(index.nearest_hit(&ray, tol), Ok(Some(_))) {
+                    hits += 1;
+                }
+            }
+            println!("handleray hits={hits}");
+        }
         "project" => {
             // Planar projection + 2D overlay: sorting and predicate
             // evaluation rather than mesh topology.

@@ -254,6 +254,36 @@ console.log("screenshot: /tmp/perf-view.png");
 
 
 
+
+// --- ray paths section ---
+const rp = await evalJs(`(() => {
+  const b = [...document.querySelectorAll("nav button")]
+    .find((e) => /Ray paths/i.test(e.textContent || ""));
+  if (!b) return "no nav";
+  const r = b.getBoundingClientRect();
+  return JSON.stringify({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+})()`);
+const rpp = JSON.parse(rp && rp !== "no nav" ? rp : "{}");
+if (rpp.x) {
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: rpp.x, y: rpp.y, button: "left", clickCount: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: rpp.x, y: rpp.y, button: "left", clickCount: 1 });
+}
+await new Promise((r) => setTimeout(r, 1000));
+const rayText = await evalJs(`(() => {
+  const m = document.querySelector("main") || document.body;
+  return (m.innerText || "").replace(/\\s+/g, " ");
+})()`);
+check("ray paths shows all three", /Full scan/i.test(rayText)
+  && /Automatic cache/i.test(rayText) && /Caller-held index/i.test(rayText), "");
+// The caveat is the point of the section: without it a reader would
+// take 71x as a free, automatic win.
+check("opt-in caveat is stated", /opt-in/i.test(rayText)
+  && /did not move/i.test(rayText), "");
+check("crossover is disclosed", /22 rays/i.test(rayText), "");
+const shot3 = await send("Page.captureScreenshot", { format: "png" });
+writeFileSync("/tmp/raypaths.png", Buffer.from(shot3.data, "base64"));
+console.log("ray screenshot: /tmp/raypaths.png");
+
 const failed = checks.filter((c) => !c.ok);
 console.log(`\n${checks.length - failed.length}/${checks.length} checks passed`);
 ws.close();

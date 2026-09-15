@@ -2,14 +2,16 @@ import { useEffect, useState } from "react";
 import { ComparisonView } from "@/components/comparison-view";
 import { HistoryView } from "@/components/history-view";
 import { ParallelView } from "@/components/parallel-view";
+import { RayPathsView } from "@/components/raypaths-view";
 import { PerfView } from "@/components/perf-view";
-import type { HistoryDoc, PerfDoc } from "@/perf-types";
+import type { HistoryDoc, PerfDoc, RayPathsDoc } from "@/perf-types";
 
-type SectionId = "comparison" | "perf" | "history" | "parallel" | "method";
+type SectionId = "comparison" | "perf" | "history" | "raypaths" | "parallel" | "method";
 
 const SECTIONS: { id: SectionId; label: string; blurb: string }[] = [
   { id: "perf", label: "Cost breakdown", blurb: "Where time goes per area" },
   { id: "history", label: "Before / after", blurb: "What each optimisation bought" },
+  { id: "raypaths", label: "Ray paths", blurb: "Scan vs cache vs held index" },
   { id: "parallel", label: "Parallelism", blurb: "Thread scaling per area" },
   { id: "comparison", label: "Kernel comparison", blurb: "Axiolid vs other kernels" },
   { id: "method", label: "Method", blurb: "How these numbers are produced" },
@@ -20,6 +22,7 @@ export default function App() {
   const [perf, setPerf] = useState<PerfDoc | null>(null);
   const [perfError, setPerfError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryDoc | null>(null);
+  const [rays, setRays] = useState<RayPathsDoc | null>(null);
 
   useEffect(() => {
     fetch("/perf.json")
@@ -32,6 +35,10 @@ export default function App() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then(setHistory)
       .catch(() => setHistory(null));
+    fetch("/raypaths.json")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then(setRays)
+      .catch(() => setRays(null));
   }, []);
 
   return (
@@ -70,6 +77,16 @@ export default function App() {
       <main className="flex-1 px-8 py-10">
         <div className="mx-auto max-w-5xl">
           {section === "comparison" && <ComparisonView />}
+
+          {section === "raypaths" &&
+            (rays ? (
+              <RayPathsView doc={rays} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No ray data yet. Run{" "}
+                <code className="rounded bg-muted px-1">scripts/perf-raypaths.sh</code>.
+              </p>
+            ))}
 
           {section === "history" &&
             (history ? (

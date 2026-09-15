@@ -1,0 +1,42 @@
+{
+  "noiseFloorPct": 7.1,
+  "reps": 7,
+  "rays": 2000,
+  "triangles": 81920,
+  "crossoverRays": 22,
+  "variants": [
+    {
+      "variant": "Full scan",
+      "note": "nearest_hit tests every triangle. No index, no setup, no bookkeeping.",
+      "ms": 4399.0,
+      "band": [
+        4361.0,
+        4418.0
+      ],
+      "speedup": 1.0,
+      "real": false
+    },
+    {
+      "variant": "Automatic cache",
+      "note": "Application::nearest_mesh_hit. Keyed by content hash, so it costs one hash per cast and cannot serve stale geometry.",
+      "ms": 374.0,
+      "band": [
+        365.0,
+        385.0
+      ],
+      "speedup": 11.8,
+      "real": true
+    },
+    {
+      "variant": "Caller-held index",
+      "note": "MeshRayIndex::build once, cast many. The borrow checker pins the mesh, so no key is needed at all.",
+      "ms": 62.0,
+      "band": [
+        61.0,
+        70.0
+      ],
+      "speedup": 71.0,
+      "real": true
+    }
+  ]
+}
