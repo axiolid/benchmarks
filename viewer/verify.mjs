@@ -507,6 +507,69 @@ const shot7 = await send("Page.captureScreenshot", { format: "png" });
 writeFileSync("/tmp/workloads_rel.png", Buffer.from(shot7.data, "base64"));
 console.log("workload relative: /tmp/workloads_rel.png");
 
+// Split view: one chart per workload, each scaled to its own slowest
+// kernel. Shared-axis mode is dominated by flush n=64.
+const sp = await evalJs(`(() => {
+  const b = [...document.querySelectorAll("button")]
+    .find((e) => (e.getAttribute("aria-label") || "") === "Split workloads");
+  if (!b) return JSON.stringify({ found: false });
+  b.click();
+  return JSON.stringify({ found: true });
+})()`);
+const spp = JSON.parse(sp || "{}");
+check("split button exists in workload view", spp.found === true, "");
+await new Promise((r) => setTimeout(r, 900));
+const spd = await evalJs(`(() => {
+  const charts = [...document.querySelectorAll(".recharts-wrapper")];
+  // Widest painted bar in each chart, as a fraction of that chart plot.
+  const fills = charts.map((c) => {
+    const bars = [...c.querySelectorAll(".recharts-bar-rectangle path, .recharts-bar-rectangle rect")];
+    const ws = bars.map((b) => { const r = b.getBoundingClientRect(); return r.width; });
+    const plot = c.getBoundingClientRect().width || 1;
+    return ws.length ? Math.max(...ws) / plot : 0;
+  });
+  return JSON.stringify({ charts: charts.length, fills });
+})()`);
+const spdp = JSON.parse(spd || "{}");
+check("split renders one chart per workload", (spdp.charts ?? 0) >= 12, String(spdp.charts));
+// The point of splitting: in EVERY chart the slowest kernel should use
+// most of the width. Shared-axis mode leaves small workloads near zero.
+const fills = spdp.fills ?? [];
+const wide = fills.filter((f) => f > 0.5).length;
+check("each split chart is scaled to its own slowest kernel",
+  fills.length >= 12 && wide >= 12,
+  `charts=${fills.length} wide=${wide} sample=${fills.slice(0, 4).map((f) => f.toFixed(2)).join(",")}`);
+const shot8 = await send("Page.captureScreenshot", { format: "png" });
+writeFileSync("/tmp/workloads_split.png", Buffer.from(shot8.data, "base64"));
+// Every kernel that has a number for a workload must paint something
+// visible in that chart. A 1x bar against a 166x max rounds to zero
+// width, which reads as "this kernel did not run".
+const vis = await evalJs(`(() => {
+  const charts = [...document.querySelectorAll(".recharts-wrapper")];
+  let tiny = 0, total = 0;
+  charts.forEach((c) => {
+    [...c.querySelectorAll(".recharts-bar-rectangle path, .recharts-bar-rectangle rect")].forEach((b) => {
+      const w = b.getBoundingClientRect().width;
+      total += 1;
+      if (w < 2) tiny += 1;
+    });
+  });
+  return JSON.stringify({ tiny, total });
+})()`);
+const visp = JSON.parse(vis || "{}");
+check("no kernel bar is invisible in split view",
+  (visp.total ?? 0) > 0 && (visp.tiny ?? 1) === 0,
+  `tiny=${visp.tiny} of ${visp.total}`);
+// The split legend identifies kernels: the per-chart y ticks are hidden.
+const legTxt = await evalJs(`(() => {
+  const m = document.querySelector("main") || document.body;
+  return (m.innerText || "").replace(/\s+/g, " ");
+})()`);
+check("split view names its kernels", /Axiolid/i.test(legTxt) && /CGAL/i.test(legTxt), "");
+
+console.log("workload split: /tmp/workloads_split.png");
+
+
 const failed = checks.filter((c) => !c.ok);
 console.log(`\n${checks.length - failed.length}/${checks.length} checks passed`);
 ws.close();

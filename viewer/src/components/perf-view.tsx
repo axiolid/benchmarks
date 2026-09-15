@@ -60,6 +60,11 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
   // mode only: a shadow measured in ms behind percentage bars would be
   // comparing two different quantities.
   const [shadow, setShadow] = useState<string>("none");
+  // Split the workload view into one chart per workload. Shared-axis
+  // mode is dominated by the slowest row (flush n=64), which squashes
+  // every other workload into the left edge; splitting gives each row
+  // its own domain so the kernels inside it are actually comparable.
+  const [split, setSplit] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("time");
   const [group, setGroup] = useState<Group>("none");
   const [minPct, setMinPct] = useState(0);
@@ -289,6 +294,19 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
               </option>
             ))}
         </select>
+        {workloadRows ? (
+          <button
+            onClick={() => setSplit((s) => !s)}
+            aria-label="Split workloads"
+            aria-pressed={split}
+            className={`rounded-md border px-2.5 py-1 ${split ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`
+            }
+            title="Give each workload its own x axis, scaled to its slowest kernel"
+          >
+            {split ? "Split charts" : "Shared axis"}
+          </button>
+        ) : null}
+
 
 
         <label className="flex items-center gap-1">
@@ -357,6 +375,84 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
         ) : null}
       </div>
 
+      {workloadRows && split ? (
+        <div className="space-y-3">
+          {/* One legend for the whole grid: the per-chart y ticks are
+              hidden to save width, so colour is the only kernel id. */}
+          <div className="flex flex-wrap gap-3 text-xs">
+            {shownSeries.map((k) => (
+              <button
+                key={k}
+                onClick={() => setFocus((cur) => (cur === k ? null : k))}
+                className="inline-flex items-center gap-1.5"
+              >
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-sm"
+                  style={{ background: KERNEL_COLORS[k] ?? "#94a3b8", opacity: !focus || focus === k ? 1 : 0.3 }}
+                />
+                <span className={!focus || focus === k ? "" : "text-muted-foreground"}>{label(k)}</span>
+              </button>
+            ))}
+          </div>
+          {(shown as Record<string, string | number>[]).map((row) => {
+            // Each chart gets its own domain: the slowest kernel in THIS
+            // workload defines the full width, so the comparison inside
+            // the row is readable regardless of how it compares to
+            // flush n=64.
+            const vals = shownSeries
+              .map((k) => row[k])
+              .filter((v): v is number => typeof v === "number");
+            const max = vals.length ? Math.max(...vals) : 0;
+            return (
+              <div key={String(row.id)} className="rounded-lg border bg-card p-3">
+                <div className="mb-1 flex items-baseline justify-between text-xs">
+                  <span className="font-medium">{String(row.area)}</span>
+                  <span className="text-muted-foreground">
+                    slowest {mode === "relative" ? `${max.toFixed(1)}x` : `${max.toFixed(1)}ms`}
+                  </span>
+                </div>
+                <ResponsiveContainer width="100%" height={52 + shownSeries.length * 18}>
+                  <BarChart
+                    data={[row]}
+                    layout="vertical"
+                    margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+                    <XAxis
+                      type="number"
+                      domain={[0, max || "auto"]}
+                      tickFormatter={(v: number) =>
+                        mode === "relative" ? `${v.toFixed(0)}x` : `${Math.round(v)}ms`
+                      }
+                      fontSize={11}
+                    />
+                    <YAxis type="category" dataKey="area" width={110} tick={false} fontSize={11} />
+                    <Tooltip
+                      formatter={(v: number, n: string) => [
+                        mode === "relative" ? `${v.toFixed(1)}x` : `${v.toFixed(1)}ms`,
+                        label(n),
+                      ]}
+                    />
+                    {shownSeries.map((k) => (
+                      <Bar
+                        key={k}
+                        dataKey={k}
+                        fill={KERNEL_COLORS[k] ?? "#94a3b8"}
+                        fillOpacity={!focus || focus === k ? 1 : 0.15}
+                        isAnimationActive={false}
+                        // The fastest kernel can be 1x against a 166x max,
+                        // which rounds to sub-pixel. Floor the painted width
+                        // so "fastest" never renders as "missing".
+                        minPointSize={3}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
       <div className="rounded-lg border bg-card p-4">
         <ResponsiveContainer width="100%" height={Math.max(300, shown.length * (workloadRows ? 76 : 34))}>
           <BarChart data={shown} layout="vertical" margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
@@ -428,6 +524,7 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
           </BarChart>
         </ResponsiveContainer>
       </div>
+      )}
 
       {area && (
         <div className="rounded-lg border bg-card p-4 space-y-4">
