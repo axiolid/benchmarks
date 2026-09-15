@@ -284,6 +284,101 @@ const shot3 = await send("Page.captureScreenshot", { format: "png" });
 writeFileSync("/tmp/raypaths.png", Buffer.from(shot3.data, "base64"));
 console.log("ray screenshot: /tmp/raypaths.png");
 
+
+
+// The ray-paths checks above left that section open. These checks are
+// about Cost breakdown, so go back before querying its controls.
+const cb = await evalJs(`(() => {
+  const b = [...document.querySelectorAll("nav button")]
+    .find((e) => /Cost breakdown/i.test(e.textContent || ""));
+  if (!b) return "no nav";
+  const r = b.getBoundingClientRect();
+  return JSON.stringify({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+})()`);
+const cbp = JSON.parse(cb && cb !== "no nav" ? cb : "{}");
+if (cbp.x) {
+  await send("Input.dispatchMouseEvent", { type: "mousePressed", x: cbp.x, y: cbp.y, button: "left", clickCount: 1 });
+  await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: cbp.x, y: cbp.y, button: "left", clickCount: 1 });
+}
+await new Promise((r) => setTimeout(r, 900));
+
+// --- cost breakdown: kernel + shadow dropdowns ---
+const kd = await evalJs(`(() => {
+  const sel = [...document.querySelectorAll("select")];
+  const k = sel.find((s) => s.getAttribute("aria-label") === "Kernel");
+  const s = sel.find((s) => s.getAttribute("aria-label") === "Shadow kernel");
+  if (!k) return JSON.stringify({ found: false });
+  const opts = [...k.options].map((o) => ({ t: o.textContent.trim(), d: o.disabled }));
+  return JSON.stringify({ found: true, opts, shadowDisabled: s ? s.disabled : null });
+})()`);
+const kdp = JSON.parse(kd || "{}");
+check("kernel dropdown exists", kdp.found === true, "");
+check("offers competitor kernels",
+  !!kdp.opts && kdp.opts.some((o) => /CGAL/.test(o.t)) && kdp.opts.some((o) => /IfcLite/i.test(o.t)), "");
+// A kernel that is not compiled must be shown disabled, not omitted:
+// silently dropping it looks like a kernel that lost the benchmark.
+check("uncompiled kernels labelled not built",
+  !!kdp.opts && kdp.opts.filter((o) => o.d).length > 0
+  && kdp.opts.filter((o) => o.d).every((o) => /not built/i.test(o.t)), "");
+check("shadow gated on the millisecond axis", kdp.shadowDisabled === true, "");
+
+// Switching kernels must actually rechart, not merely set state.
+const sw = await evalJs(`(() => {
+  const sels = [...document.querySelectorAll("select")];
+  const k = sels.find((s) => s.getAttribute("aria-label") === "Kernel");
+  if (!k) return "0";
+  const before = document.querySelectorAll(".recharts-bar-rectangle").length;
+  k.value = "cgal";
+  k.dispatchEvent(new Event("change", { bubbles: true }));
+  return String(before);
+})()`);
+await new Promise((r) => setTimeout(r, 600));
+const after = await evalJs(`(() => {
+  const bars = document.querySelectorAll(".recharts-bar-rectangle").length;
+  const txt = (document.querySelector("main") || document.body).innerText || "";
+  return JSON.stringify({ bars, cgal: /CGAL/.test(txt) });
+})()`);
+const ap = JSON.parse(after || "{}");
+check("selecting CGAL recharts", ap.bars > 0 && ap.cgal === true, "");
+
+// In millisecond mode the shadow must un-gate and draw a real bar.
+const sh = await evalJs(`(() => {
+  const ms = [...document.querySelectorAll("button")]
+    .find((b) => /milliseconds/i.test(b.textContent || ""));
+  if (ms) ms.click();
+  return "ok";
+})()`);
+await new Promise((r) => setTimeout(r, 500));
+const shr = await evalJs(`(() => {
+  const s = [...document.querySelectorAll("select")]
+    .find((e) => e.getAttribute("aria-label") === "Shadow kernel");
+  if (!s || s.disabled) return JSON.stringify({ enabled: false });
+  const opt = [...s.options].find((o) => /Behind:/.test(o.textContent));
+  if (!opt) return JSON.stringify({ enabled: true, drew: false });
+  s.value = opt.value;
+  s.dispatchEvent(new Event("change", { bubbles: true }));
+  return JSON.stringify({ enabled: true, picked: opt.value });
+})()`);
+const shp = JSON.parse(shr || "{}");
+check("shadow enables in millisecond mode", shp.enabled === true, "");
+await new Promise((r) => setTimeout(r, 600));
+const drew = await evalJs(`(() => {
+  const bars = [...document.querySelectorAll(".recharts-bar")];
+  return String(bars.length);
+})()`);
+check("shadow draws behind the stack", Number(drew) > 1, "");
+
+// The shadow is an underlay, not a cost category: listing it in the
+// legend invites reading it as part of the breakdown.
+const leg = await evalJs(`(() => {
+  const l = document.querySelector(".recharts-legend-wrapper");
+  return (l && l.innerText || "").replace(/\\s+/g, " ");
+})()`);
+check("shadow absent from the category legend", !/shadow/i.test(leg), "");
+const shot4 = await send("Page.captureScreenshot", { format: "png" });
+writeFileSync("/tmp/shadow.png", Buffer.from(shot4.data, "base64"));
+console.log("shadow screenshot: /tmp/shadow.png");
+
 const failed = checks.filter((c) => !c.ok);
 console.log(`\n${checks.length - failed.length}/${checks.length} checks passed`);
 ws.close();

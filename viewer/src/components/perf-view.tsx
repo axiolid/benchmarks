@@ -13,9 +13,19 @@ import {
   YAxis,
 } from "recharts";
 import { AREA_LABELS, CATEGORY_LABELS, CATEGORY_COLORS } from "@/perf-types";
-import type { PerfDoc } from "@/perf-types";
+import type { PerfDoc, KernelsDoc } from "@/perf-types";
 
 const colour = (c: string) => CATEGORY_COLORS[c] ?? "#64748b";
+
+/** Human labels for kernels the comparison harness can measure. */
+const KERNEL_LABELS: Record<string, string> = {
+  axiolid: "Axiolid",
+  cgal: "CGAL",
+  ifclite: "IfcLite (geometry)",
+  boolmesh: "boolmesh",
+  manifold: "Manifold",
+  occt: "Open CASCADE",
+};
 
 type Mode = "relative" | "absolute";
 type SortKey = "time" | "name" | "category";
@@ -29,11 +39,18 @@ type Group = "none" | "dominant";
  * invisible sliver. Hence relative mode by default, absolute available,
  * and unclassified always drawn.
  */
-export function PerfView({ doc }: { doc: PerfDoc }) {
+export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc | null }) {
   const [openArea, setOpenArea] = useState<string | null>(null);
   const [openCat, setOpenCat] = useState<string | null>(null);
   const [focus, setFocus] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("relative");
+  // Which kernel's breakdown to chart: "axiolid" (the per-area data),
+  // a competitor, or "all" to compare their shapes side by side.
+  const [kernel, setKernel] = useState<string>("axiolid");
+  // A second kernel drawn behind the bars at full wall time. Absolute
+  // mode only: a shadow measured in ms behind percentage bars would be
+  // comparing two different quantities.
+  const [shadow, setShadow] = useState<string>("none");
   const [sortKey, setSortKey] = useState<SortKey>("time");
   const [group, setGroup] = useState<Group>("none");
   const [minPct, setMinPct] = useState(0);
@@ -51,6 +68,30 @@ export function PerfView({ doc }: { doc: PerfDoc }) {
     if (!focus) return cats;
     return [focus, ...cats.filter((c) => c !== focus)];
   }, [cats, focus]);
+
+  // Kernel rows: one bar per kernel rather than per area. Each kernel's
+  // categories are normalised to its own 100%, so the bars compare the
+  // SHAPE of the cost; absolute mode scales by measured wall time.
+  const kernelRows = useMemo(() => {
+    if (!kernels || kernel === "axiolid") return null;
+    const pick =
+      kernel === "all"
+        ? kernels.kernels
+        : kernels.kernels.filter((k) => k.kernel === kernel);
+    return pick.map((k) => {
+      const row: Record<string, string | number> = {
+        area: KERNEL_LABELS[k.kernel] ?? k.kernel,
+        id: k.kernel,
+        wall: k.total_ms ?? 0,
+        dominant: k.categories[0]?.name ?? "unclassified",
+      };
+      k.categories.forEach((c) => {
+        row[c.name] =
+          mode === "absolute" ? (c.pct / 100) * (k.total_ms ?? 0) : c.pct;
+      });
+      return row;
+    });
+  }, [kernels, kernel, mode]);
 
   const rows = useMemo(() => {
     const pctOf = (a: PerfDoc["areas"][number], name: string) =>
@@ -91,6 +132,35 @@ export function PerfView({ doc }: { doc: PerfDoc }) {
     });
   }, [doc, focus, minPct, sortKey, group, mode]);
 
+  // The charted rows, with the shadow's full wall time attached. The
+  // shadow is deliberately NOT broken down: it is one muted bar behind
+  // the stack showing the other kernel's total, which only means
+  // anything when the axis is milliseconds.
+  const shown = useMemo(() => {
+    const base = kernelRows ?? rows;
+    const ghost =
+      shadow === "none" || mode !== "absolute" || !kernels
+        ? null
+        : kernels.kernels.find((k) => k.kernel === shadow);
+    if (!ghost?.total_ms) return base;
+    return base.map((r) => ({ ...r, shadow: ghost.total_ms }));
+  }, [kernelRows, rows, shadow, mode, kernels]);
+
+  // In kernel mode the categories come from the kernel profiles, which
+  // use the same names as the area data where they overlap.
+  const shownSeries = useMemo(() => {
+    if (!kernelRows) return series;
+    const names = new Set<string>();
+    kernelRows.forEach((r) =>
+      Object.keys(r).forEach((k) => {
+        if (!["area", "id", "wall", "dominant", "shadow"].includes(k)) {
+          names.add(k);
+        }
+      }),
+    );
+    return [...names];
+  }, [kernelRows, series]);
+
   const area = doc.areas.find((a) => a.area === openArea) ?? null;
   const label = (c: string) => CATEGORY_LABELS[c] ?? c;
 
@@ -116,6 +186,49 @@ export function PerfView({ doc }: { doc: PerfDoc }) {
             </button>
           ))}
         </div>
+        <select
+          value={kernel}
+          onChange={(e) => setKernel(e.target.value)}
+          className="rounded-md border bg-background px-2 py-1"
+          aria-label="Kernel"
+        >
+          <option value="axiolid">Axiolid (per area)</option>
+          <option value="all">All kernels</option>
+          {kernels?.kernels.map((k) => (
+            <option key={k.kernel} value={k.kernel}>
+              {KERNEL_LABELS[k.kernel] ?? k.kernel}
+              {k.breakdown_trustworthy ? "" : " (thin sample)"}
+            </option>
+          ))}
+          {kernels?.unavailable.map((k) => (
+            <option key={k} value={k} disabled>
+              {KERNEL_LABELS[k] ?? k} (not built)
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={shadow}
+          onChange={(e) => setShadow(e.target.value)}
+          disabled={mode !== "absolute"}
+          className="rounded-md border bg-background px-2 py-1 disabled:opacity-40"
+          aria-label="Shadow kernel"
+          title={
+            mode === "absolute"
+              ? "Draw another kernel's total time behind the bars"
+              : "Shadow needs the millisecond axis: a total cannot sit behind percentages"
+          }
+        >
+          <option value="none">No shadow</option>
+          {kernels?.kernels
+            .filter((k) => k.total_ms !== undefined)
+            .map((k) => (
+              <option key={k.kernel} value={k.kernel}>
+                Behind: {KERNEL_LABELS[k.kernel] ?? k.kernel}
+              </option>
+            ))}
+        </select>
+
 
         <label className="flex items-center gap-1">
           <span className="text-muted-foreground">Sort</span>
@@ -176,7 +289,7 @@ export function PerfView({ doc }: { doc: PerfDoc }) {
 
       <div className="rounded-lg border bg-card p-4">
         <ResponsiveContainer width="100%" height={Math.max(300, rows.length * 34)}>
-          <BarChart data={rows} layout="vertical" margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
+          <BarChart data={shown} layout="vertical" margin={{ left: 8, right: 16, top: 8, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
             <XAxis
               type="number"
@@ -203,7 +316,19 @@ export function PerfView({ doc }: { doc: PerfDoc }) {
               wrapperStyle={{ fontSize: 12, cursor: "pointer" }}
             />
 
-            {series.map((c) => (
+            {/* Drawn first and on its own stack so it sits BEHIND the
+                breakdown: the muted bar is the shadow kernel's full
+                wall time, not a category. */}
+            <Bar
+              dataKey="shadow"
+              stackId="shadow"
+              fill="#94a3b8"
+              fillOpacity={0.22}
+              isAnimationActive={false}
+              legendType="none"
+            />
+
+            {shownSeries.map((c) => (
               <Bar
                 key={c}
                 dataKey={c}

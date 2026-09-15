@@ -1,0 +1,73 @@
+{
+ "kernels": [
+  {
+   "kernel": "cgal",
+   "profile_share_pct": 51.58,
+   "breakdown_trustworthy": true,
+   "categories": [
+    {
+     "name": "exact arithmetic",
+     "pct": 50.6
+    },
+    {
+     "name": "tree/graph traversal",
+     "pct": 23.15
+    },
+    {
+     "name": "hashing",
+     "pct": 16.65
+    },
+    {
+     "name": "other kernel work",
+     "pct": 9.54
+    },
+    {
+     "name": "sorting",
+     "pct": 0.06
+    }
+   ],
+   "total_ms": 6362.542
+  },
+  {
+   "kernel": "ifclite",
+   "profile_share_pct": 26.93,
+   "breakdown_trustworthy": true,
+   "categories": [
+    {
+     "name": "exact arithmetic",
+     "pct": 82.77
+    },
+    {
+     "name": "other kernel work",
+     "pct": 17.23
+    }
+   ],
+   "total_ms": 16.759
+  },
+  {
+   "kernel": "boolmesh",
+   "profile_share_pct": 0.82,
+   "breakdown_trustworthy": false,
+   "categories": [
+    {
+     "name": "other kernel work",
+     "pct": 100.0
+    }
+   ],
+   "total_ms": 145.977
+  }
+ ],
+ "built": [
+  "axiolid",
+  "raw_boolmesh",
+  "lite_kernel",
+  "lite_rectfast",
+  "cellular",
+  "cgal"
+ ],
+ "unavailable": [
+  "manifold",
+  "occt"
+ ],
+ "note": "Sample share is measured; a kernel absent from the profile is reported as unavailable, never as zero."
+}

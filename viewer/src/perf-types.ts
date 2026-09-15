@@ -57,6 +57,13 @@ export const CATEGORY_COLORS: Record<string, string> = {
   branch_bookkeeping: "#8b5cf6",
   math: "#22c55e",
   unclassified: "#94a3b8",
+  // Kernel-profile categories: distinct hues so a competitor breakdown
+  // is readable instead of four shades of the fallback grey.
+  "exact arithmetic": "#ef4444",
+  "tree/graph traversal": "#0ea5e9",
+  "memory allocation": "#f59e0b",
+  "sorting/searching": "#6366f1",
+  "other kernel work": "#94a3b8",
 };
 
 export const CATEGORY_LABELS: Record<string, string> = {
@@ -131,4 +138,21 @@ export interface RayPathsDoc {
   triangles: number;
   crossoverRays: number;
   variants: RayPathVariant[];
+}
+
+/** One kernel's measured cost breakdown, from scripts/perf-kernels.py. */
+export interface KernelProfile {
+  kernel: string;
+  profile_share_pct: number;
+  /** False when too few samples landed for the split to mean anything. */
+  breakdown_trustworthy: boolean;
+  total_ms?: number;
+  categories: { name: string; pct: number }[];
+}
+
+export interface KernelsDoc {
+  kernels: KernelProfile[];
+  built: string[];
+  unavailable: string[];
+  note: string;
 }

@@ -4,7 +4,7 @@ import { HistoryView } from "@/components/history-view";
 import { ParallelView } from "@/components/parallel-view";
 import { RayPathsView } from "@/components/raypaths-view";
 import { PerfView } from "@/components/perf-view";
-import type { HistoryDoc, PerfDoc, RayPathsDoc } from "@/perf-types";
+import type { HistoryDoc, PerfDoc, RayPathsDoc, KernelsDoc } from "@/perf-types";
 
 type SectionId = "comparison" | "perf" | "history" | "raypaths" | "parallel" | "method";
 
@@ -23,6 +23,7 @@ export default function App() {
   const [perfError, setPerfError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryDoc | null>(null);
   const [rays, setRays] = useState<RayPathsDoc | null>(null);
+  const [kernels, setKernels] = useState<KernelsDoc | null>(null);
 
   useEffect(() => {
     fetch("/perf.json")
@@ -39,6 +40,11 @@ export default function App() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then(setRays)
       .catch(() => setRays(null));
+    // Optional: the page still works without a kernel profile.
+    fetch("/kernels.json")
+      .then((r) => r.json())
+      .then(setKernels)
+      .catch(() => setKernels(null));
   }, []);
 
   return (
@@ -114,7 +120,7 @@ export default function App() {
               {!perf && !perfError && (
                 <p className="text-sm text-muted-foreground">Loading profile…</p>
               )}
-              {perf && section === "perf" && <PerfView doc={perf} />}
+              {perf && section === "perf" && <PerfView doc={perf} kernels={kernels} />}
               {perf && section === "parallel" && <ParallelView doc={perf} />}
             </>
           )}

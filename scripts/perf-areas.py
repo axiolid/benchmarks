@@ -20,7 +20,11 @@ PROBE = ROOT / "perf-probe/target/release/perf-probe"
 PERF_DIR = Path("/mnt/archive/corpus/perf")
 
 AREAS = ["boolean", "audit", "measure", "levelset", "inspect", "heal", "genus",
-         "decimate", "refine", "raymesh", "project", "decompose"]
+         "decimate", "refine", "raymesh", "project", "decompose",
+         # Ray-acceleration and hashing arms the probe already implements.
+         # They were measured during their own work but never surfaced here,
+         # so the dashboard understated what the probe covers.
+         "raybvh", "facaderay", "handleray", "refinehash"]
 
 # Ordered: first match wins, so narrower patterns must precede broader
 # ones. Each entry is (category, regex, why) -- the reason is carried
