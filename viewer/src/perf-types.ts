@@ -78,6 +78,18 @@ export const CATEGORY_LABELS: Record<string, string> = {
 
 /** What each area actually exercises, for the reader who is not in the code. */
 export const AREA_LABELS: Record<string, { label: string; blurb: string }> = {
+  raybvh: { label: "Ray/BVH", blurb: "Ray casts against a prebuilt BVH, build excluded." },
+  facaderay: { label: "Facade rays", blurb: "Cached ray index over a facade: repeated nearest-hit." },
+  handleray: { label: "Handle rays", blurb: "Caller-held index: rays without cache lookup." },
+  minkowski: { label: "Minkowski sum", blurb: "Convex sum of two solids: cost grows with face pairs." },
+  minkdiff: { label: "Minkowski difference", blurb: "Erosion by a tool solid, via the boolean provider." },
+  pointindex: { label: "Point index build", blurb: "Building a spatial point index: dominated by the sort." },
+  pointnear: { label: "Nearest point", blurb: "Nearest-neighbour queries against a prebuilt index." },
+  bvhpairs: { label: "BVH pair query", blurb: "Self-overlap candidate pairs from the bounding hierarchy." },
+  overlay: { label: "Planar overlay", blurb: "2D boolean on rings: sweep line plus intersections." },
+  route: { label: "Route", blurb: "Shortest path around planar barriers." },
+  fieldsample: { label: "Field sampling", blurb: "Rasterising triangles into a layered height field." },
+  components: { label: "Components", blurb: "Connected-component labelling over mesh adjacency." },
   boolean: { label: "Boolean", blurb: "Mesh union of two offset spheres." },
   audit: { label: "Mesh audit", blurb: "Structural health: edges, winding, manifoldness." },
   measure: { label: "Measure", blurb: "Volume, surface area and second moments." },

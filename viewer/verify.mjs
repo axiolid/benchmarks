@@ -570,6 +570,38 @@ check("split view names its kernels", /Axiolid/i.test(legTxt) && /CGAL/i.test(le
 console.log("workload split: /tmp/workloads_split.png");
 
 
+
+// An area whose profile is mostly unclassified teaches nothing: the
+// fieldsample arm shipped at 99% unclassified because its rasteriser
+// inlines entirely. Cap it so a new arm cannot quietly do the same.
+const unc = await evalJs(`(async () => {
+  const r = await fetch("/perf.json");
+  const d = await r.json();
+  const bad = d.areas
+    .map((a) => ({
+      area: a.area,
+      u: (a.categories.find((c) => c.name === "unclassified") || {}).pct || 0,
+    }))
+    .filter((x) => x.u > 60);
+  return JSON.stringify({ count: d.areas.length, bad });
+})()`);
+const uncp = JSON.parse(unc || "{}");
+check("area count grew past twenty", (uncp.count ?? 0) >= 20, String(uncp.count));
+check("no area is mostly unclassified",
+  Array.isArray(uncp.bad) && uncp.bad.length === 0,
+  JSON.stringify(uncp.bad || []).slice(0, 160));
+
+
+// Every area needs a human label. raybvh/facaderay/handleray shipped
+// as raw ids for three rounds because nothing asserted this.
+const lbl = await evalJs(`(() => {
+  const ticks = [...document.querySelectorAll(".recharts-yAxis .recharts-cartesian-axis-tick-value")]
+    .map((t) => (t.textContent || "").trim());
+  return JSON.stringify({ raw: ticks.filter((t) => /^[a-z]+$/.test(t)) });
+})()`);
+const lblp = JSON.parse(lbl || "{}");
+check("every area has a human label", (lblp.raw ?? []).length === 0, JSON.stringify(lblp.raw));
+
 const failed = checks.filter((c) => !c.ok);
 console.log(`\n${checks.length - failed.length}/${checks.length} checks passed`);
 ws.close();

@@ -10,7 +10,7 @@
 
 use axiolid_contracts::ExecutionOptions;
 use axiolid_core::Aabb;
-use axiolid_core::{BooleanOperator, Point3, Tolerance};
+use axiolid_core::{BooleanOperator, Frame3, Point2, Point3, Tolerance, Vec3};
 use axiolid_mesh::{audit_mesh, TriMesh};
 use axiolid_mesh_boolean_boolmesh::BoolmeshBoolean;
 use axiolid_mesh_boolean_contract::MeshBoolean;
@@ -62,6 +62,31 @@ fn sphere(subdiv: u32, radius: f64, dx: f64) -> TriMesh {
         *p = Point3::new(p.x / n * radius + dx, p.y / n * radius, p.z / n * radius);
     }
     TriMesh::new(pos, idx)
+}
+
+/// Per-triangle AABB items for a BVH.
+///
+/// The ray arms already needed this; the pair-query arms need the same
+/// thing, so it lives here rather than being written twice with a
+/// chance of the two drifting apart.
+fn tri_items(m: &TriMesh) -> Vec<SpatialItem<usize>> {
+    (0..m.triangle_count())
+        .map(|i| {
+            let idx = &m.indices[i * 3..i * 3 + 3];
+            let t = [
+                m.positions[idx[0] as usize],
+                m.positions[idx[1] as usize],
+                m.positions[idx[2] as usize],
+            ];
+            let mut lo = t[0];
+            let mut hi = t[0];
+            for p in [t[1], t[2]] {
+                lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
+                hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+            }
+            SpatialItem::new(i, Aabb { min: lo, max: hi })
+        })
+        .collect()
 }
 
 fn main() {
@@ -323,6 +348,160 @@ fn main() {
                     tol,
                 );
                 std::hint::black_box(&r);
+            }
+        }
+        "minkowski" => {
+            // Convex sum: every face pair of two solids, so cost grows
+            // multiplicatively rather than additively.
+            let a = sphere(3, 1.0, 0.0);
+            let b = sphere(1, 0.25, 0.0);
+            for _ in 0..2 {
+                let r = axiolid_minkowski::minkowski_sum(&a, &b, tol);
+                debug_assert!(r.is_ok(), "minkowski arm must do real work");
+                std::hint::black_box(r.ok());
+            }
+        }
+        "pointindex" => {
+            // Build a k-d style point index then query it: build cost is
+            // a sort, query cost is pointer chasing.
+            let m = sphere(6, 1.0, 0.0);
+            let pts: Vec<Point3> = m.positions.clone();
+            for _ in 0..8 {
+                let idx = axiolid_spatial::PointIndex::build(&pts);
+                std::hint::black_box(idx.len());
+            }
+        }
+        "pointnear" => {
+            // Nearest-neighbour queries against a prebuilt index: pure
+            // traversal, no build cost in the measurement.
+            let m = sphere(6, 1.0, 0.0);
+            let pts: Vec<Point3> = m.positions.clone();
+            let idx = axiolid_spatial::PointIndex::build(&pts);
+            for i in 0..4000 {
+                let f = i as f64 * 0.001;
+                std::hint::black_box(idx.nearest(Point3::new(f, 0.2, 0.3)).ok());
+            }
+        }
+        "bvhpairs" => {
+            // Self-intersection candidate pairs: quadratic in the worst
+            // case, and the reason a BVH exists at all.
+            let m = sphere(5, 1.0, 0.0);
+            let bvh = Bvh::build(tri_items(&m));
+            for _ in 0..6 {
+                std::hint::black_box(bvh.overlap_pairs(0.0).pairs.len());
+            }
+        }
+        "overlay" => {
+            // Planar boolean on rings: sweep-line plus intersection
+            // tests, a different cost shape from the mesh booleans.
+            use axiolid_overlay::Ring;
+            let mut rings = Vec::new();
+            for i in 0..24 {
+                let f = i as f64 * 0.35;
+                rings.push(Ring {
+                    points: vec![
+                        Point2::new(f, 0.0),
+                        Point2::new(f + 1.0, 0.0),
+                        Point2::new(f + 1.0, 1.0),
+                        Point2::new(f, 1.0),
+                    ],
+                });
+            }
+            for _ in 0..400 {
+                let r = axiolid_overlay::union_soup(&rings, tol);
+                debug_assert!(r.is_ok(), "overlay arm must do real work");
+                std::hint::black_box(r.ok());
+            }
+        }
+        "route" => {
+            // Visibility-graph shortest path around barriers: graph
+            // search cost, not geometry cost.
+            use axiolid_overlay::{Polygon, Ring};
+            let region = vec![Polygon {
+                outer: Ring {
+                    points: vec![
+                        Point2::new(0.0, 0.0),
+                        Point2::new(20.0, 0.0),
+                        Point2::new(20.0, 20.0),
+                        Point2::new(0.0, 20.0),
+                    ],
+                },
+                holes: Vec::new(),
+            }];
+            let mut barriers = Vec::new();
+            for i in 0..10 {
+                let f = 1.0 + i as f64 * 1.8;
+                barriers.push(vec![
+                    Point2::new(f, 2.0),
+                    Point2::new(f + 0.6, 2.0),
+                    Point2::new(f + 0.6, 16.0),
+                    Point2::new(f, 16.0),
+                ]);
+            }
+            for _ in 0..120 {
+                std::hint::black_box(axiolid_route::shortest_path(
+                    &region,
+                    &barriers,
+                    Point2::new(0.5, 1.0),
+                    Point2::new(19.5, 19.0),
+                ).ok());
+            }
+        }
+        "fieldsample" => {
+            // Rasterise triangles into a layered height field: the
+            // scatter-heavy counterpart to the levelset arm.
+            use axiolid_field_ops::{sample_triangles_cpu, Triangle3};
+            use axiolid_field::{FieldBounds, FieldConfig, FieldResourceBudget};
+            let m = sphere(5, 1.0, 0.0);
+            let tris: Vec<Triangle3> = (0..m.triangle_count())
+                .map(|i| {
+                    let idx = &m.indices[i * 3..i * 3 + 3];
+                    Triangle3 {
+                        a: m.positions[idx[0] as usize],
+                        b: m.positions[idx[1] as usize],
+                        c: m.positions[idx[2] as usize],
+                    }
+                })
+                .collect();
+            let bounds = FieldBounds::new(
+                Point3::new(-1.2, -1.2, -1.2),
+                Point3::new(1.2, 1.2, 1.2),
+            )
+            .expect("field bounds");
+            let cfg = FieldConfig::new(
+                Frame3 {
+                    origin: Vec3::ZERO,
+                    x: Vec3::X,
+                    y: Vec3::Y,
+                    z: Vec3::Z,
+                },
+                bounds,
+                0.02,
+                tol,
+                // Explicit: the crate deliberately has no default budget,
+                // since a library must not decide an application's memory cap.
+                FieldResourceBudget::new(1 << 22, 1 << 24),
+            )
+            .expect("field config");
+            for _ in 0..3 {
+                std::hint::black_box(sample_triangles_cpu(&cfg, &tris).is_ok());
+            }
+        }
+        "components" => {
+            // Connected-component labelling over the adjacency: pure
+            // union-find / traversal, no arithmetic.
+            let m = sphere(7, 1.0, 0.0);
+            for _ in 0..40 {
+                std::hint::black_box(axiolid_mesh::component_count(&m));
+            }
+        }
+        "minkdiff" => {
+            // Difference rather than sum: same machinery, opposite
+            // sweep direction, and a separate clipping path.
+            let a = sphere(3, 1.0, 0.0);
+            let b = sphere(1, 0.2, 0.0);
+            for _ in 0..2 {
+                std::hint::black_box(axiolid_minkowski::minkowski_difference_with(&a, &b, tol, &BoolmeshBoolean::new()).ok());
             }
         }
         "refinehash" => {

@@ -175,6 +175,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "axiolid-field"
+version = "0.1.8"
+dependencies = [
+ "axiolid-core",
+]
+
+[[package]]
+name = "axiolid-field-ops"
+version = "0.1.8"
+dependencies = [
+ "axiolid-core",
+ "axiolid-field",
+]
+
+[[package]]
 name = "axiolid-guarantees"
 version = "0.1.8"
 
@@ -274,6 +289,19 @@ dependencies = [
  "axiolid-core",
  "axiolid-mesh",
  "axiolid-mesh-contracts",
+]
+
+[[package]]
+name = "axiolid-minkowski"
+version = "0.1.8"
+dependencies = [
+ "axiolid-construct",
+ "axiolid-contracts",
+ "axiolid-core",
+ "axiolid-decompose",
+ "axiolid-mesh",
+ "axiolid-mesh-boolean-contract",
+ "thiserror",
 ]
 
 [[package]]
@@ -384,6 +412,17 @@ dependencies = [
  "axiolid-mesh",
  "axiolid-surface",
  "thiserror",
+]
+
+[[package]]
+name = "axiolid-route"
+version = "0.1.8"
+dependencies = [
+ "axiolid-contracts",
+ "axiolid-core",
+ "axiolid-guarantees",
+ "axiolid-overlay",
+ "axiolid-predicates",
 ]
 
 [[package]]
@@ -575,10 +614,15 @@ version = "0.1.0"
 dependencies = [
  "ahash",
  "axiolid",
+ "axiolid-brep-audit",
  "axiolid-contracts",
  "axiolid-core",
+ "axiolid-curve",
  "axiolid-decimate",
  "axiolid-decompose",
+ "axiolid-evaluate",
+ "axiolid-field",
+ "axiolid-field-ops",
  "axiolid-heal",
  "axiolid-inspect",
  "axiolid-levelset",
@@ -586,10 +630,17 @@ dependencies = [
  "axiolid-mesh",
  "axiolid-mesh-boolean-boolmesh",
  "axiolid-mesh-boolean-contract",
+ "axiolid-minkowski",
+ "axiolid-overlay",
+ "axiolid-primitive",
+ "axiolid-profile",
  "axiolid-project",
  "axiolid-ray-mesh",
  "axiolid-refine",
+ "axiolid-route",
  "axiolid-spatial",
+ "axiolid-surface",
+ "axiolid-topology",
  "rayon",
 ]
 

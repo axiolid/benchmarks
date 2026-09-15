@@ -24,7 +24,15 @@ AREAS = ["boolean", "audit", "measure", "levelset", "inspect", "heal", "genus",
          # Ray-acceleration and hashing arms the probe already implements.
          # They were measured during their own work but never surfaced here,
          # so the dashboard understated what the probe covers.
-         "raybvh", "facaderay", "handleray", "refinehash"]
+         "raybvh", "facaderay", "handleray",
+         # refinehash is dropped: at ~1ms the profile is process startup
+         # (page faults, dynamic linking), not the algorithm. A bar that
+         # measures exec() overhead is worse than no bar.
+         # Second wave: algorithm families the probe never covered --
+         # planar booleans and routing, Minkowski, spatial indexing,
+         # field rasterisation and component labelling.
+         "minkowski", "minkdiff", "pointindex", "pointnear", "bvhpairs",
+         "overlay", "route", "fieldsample", "components"]
 
 # Ordered: first match wins, so narrower patterns must precede broader
 # ones. Each entry is (category, regex, why) -- the reason is carried
@@ -39,6 +47,17 @@ AREAS = ["boolean", "audit", "measure", "levelset", "inspect", "heal", "genus",
 # honest but useless; guessing from names would have been useless AND
 # misleading.
 DOMAIN_RULES = [
+    # sample_triangles_cpu inlines its whole rasteriser, so no inner
+    # symbol survives and the arm profiled 99% unclassified. The work is
+    # a scatter over grid cells: pointer chasing, not arithmetic.
+    ("pointer_chasing", r"sample_triangles_cpu",
+     "layered-field rasterisation, inlined: scatter over grid cells"),
+    # PointIndex::build is a sort plus hash bucketing, inlined together.
+    ("sorting", r"PointIndex::build",
+     "point index construction, inlined: dominated by the sort"),
+    # RayIndexCache::nearest_hit inlines the BVH descent.
+    ("pointer_chasing", r"RayIndexCache::nearest_hit",
+     "cached ray index descent, inlined: tree traversal"),
     # summarize() inlines the counting sort (kernel e077c92), so its samples
     # ARE sort work even though no core::slice::sort symbol survives. Left
     # unlisted it fell into branch_bookkeeping and the chart showed audit at
