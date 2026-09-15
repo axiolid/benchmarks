@@ -112,15 +112,18 @@ def main():
         [str(BENCH / "target/release/axiolid-benchmarks"), "1", "--json"],
         cwd=BENCH, capture_output=True, text=True, check=False,
     )
-    totals, built = {}, []
+    totals, built, done, rowcount = {}, [], {}, 0
     try:
         doc = json.loads(run.stdout)
         built = doc.get("built", [])
-        for row in doc.get("rows", []):
+        rows = doc.get("rows", [])
+        rowcount = len(rows)
+        for row in rows:
             for key, value in row.items():
                 if key in ("workload", "n") or value is None:
                     continue
                 totals[key] = totals.get(key, 0.0) + float(value)
+                done[key] = done.get(key, 0) + 1
     except json.JSONDecodeError:
         pass
 
@@ -131,7 +134,12 @@ def main():
     for entry in kernels:
         for harness_id, owner in ALIAS.items():
             if owner == entry["kernel"] and harness_id in totals:
-                entry["total_ms"] = round(totals[harness_id], 3)
+                entry["suite_ms"] = round(totals[harness_id], 3)
+                # Rows the kernel actually completed. lite_kernel finishes
+                # 2 of 12, so its small total is missing coverage, not
+                # speed -- reporting it bare would invert the ranking.
+                entry["rows_done"] = done.get(harness_id, 0)
+                entry["rows_total"] = rowcount
 
     # Kernels the UI may offer but this binary cannot measure. Naming them
     # keeps a missing dependency visible instead of looking like a kernel

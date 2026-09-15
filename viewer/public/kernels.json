@@ -2,51 +2,73 @@
  "kernels": [
   {
    "kernel": "cgal",
-   "profile_share_pct": 51.58,
+   "profile_share_pct": 39.27,
    "breakdown_trustworthy": true,
    "categories": [
     {
      "name": "exact arithmetic",
-     "pct": 50.6
+     "pct": 51.54
     },
     {
      "name": "tree/graph traversal",
-     "pct": 23.15
+     "pct": 22.77
     },
     {
      "name": "hashing",
-     "pct": 16.65
+     "pct": 15.41
     },
     {
      "name": "other kernel work",
-     "pct": 9.54
+     "pct": 10.13
     },
     {
      "name": "sorting",
-     "pct": 0.06
+     "pct": 0.15
     }
    ],
-   "total_ms": 6362.542
+   "suite_ms": 6380.383,
+   "rows_done": 12,
+   "rows_total": 12
   },
   {
    "kernel": "ifclite",
-   "profile_share_pct": 26.93,
+   "profile_share_pct": 20.64,
    "breakdown_trustworthy": true,
    "categories": [
     {
      "name": "exact arithmetic",
-     "pct": 82.77
+     "pct": 83.87
     },
     {
      "name": "other kernel work",
-     "pct": 17.23
+     "pct": 16.13
     }
    ],
-   "total_ms": 16.759
+   "suite_ms": 16.198,
+   "rows_done": 2,
+   "rows_total": 12
+  },
+  {
+   "kernel": "occt",
+   "profile_share_pct": 9.8,
+   "breakdown_trustworthy": true,
+   "categories": [
+    {
+     "name": "other kernel work",
+     "pct": 88.88
+    },
+    {
+     "name": "hashing",
+     "pct": 11.12
+    }
+   ],
+   "suite_ms": 2916.443,
+   "rows_done": 12,
+   "rows_total": 12
   },
   {
    "kernel": "boolmesh",
-   "profile_share_pct": 0.82,
+   "profile_share_pct": 0.66,
    "breakdown_trustworthy": false,
    "categories": [
     {
@@ -54,7 +76,41 @@
      "pct": 100.0
     }
    ],
-   "total_ms": 145.977
+   "suite_ms": 143.305,
+   "rows_done": 12,
+   "rows_total": 12
+  },
+  {
+   "kernel": "manifold",
+   "profile_share_pct": 0.05,
+   "breakdown_trustworthy": false,
+   "categories": [
+    {
+     "name": "other kernel work",
+     "pct": 60.0
+    },
+    {
+     "name": "exact arithmetic",
+     "pct": 40.0
+    }
+   ],
+   "suite_ms": 18.038,
+   "rows_done": 12,
+   "rows_total": 12
+  },
+  {
+   "kernel": "axiolid",
+   "profile_share_pct": 0.02,
+   "breakdown_trustworthy": false,
+   "categories": [
+    {
+     "name": "other kernel work",
+     "pct": 100.0
+    }
+   ],
+   "suite_ms": 25.704,
+   "rows_done": 12,
+   "rows_total": 12
   }
  ],
  "built": [
@@ -63,11 +119,10 @@
   "lite_kernel",
   "lite_rectfast",
   "cellular",
-  "cgal"
- ],
- "unavailable": [
   "manifold",
+  "cgal",
   "occt"
  ],
+ "unavailable": [],
  "note": "Sample share is measured; a kernel absent from the profile is reported as unavailable, never as zero."
 }

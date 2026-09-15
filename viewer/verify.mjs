@@ -317,9 +317,14 @@ check("offers competitor kernels",
   !!kdp.opts && kdp.opts.some((o) => /CGAL/.test(o.t)) && kdp.opts.some((o) => /IfcLite/i.test(o.t)), "");
 // A kernel that is not compiled must be shown disabled, not omitted:
 // silently dropping it looks like a kernel that lost the benchmark.
-check("uncompiled kernels labelled not built",
-  !!kdp.opts && kdp.opts.filter((o) => o.d).length > 0
-  && kdp.opts.filter((o) => o.d).every((o) => /not built/i.test(o.t)), "");
+// Every kernel that IS compiled must be selectable, and any kernel that
+// is not must be disabled and say so -- never silently omitted, which
+// would read as a kernel that lost rather than one that is absent.
+check("compiled kernels are all selectable",
+  !!kdp.opts && kdp.opts.some((o) => /CGAL/.test(o.t) && !o.d)
+  && kdp.opts.some((o) => /Open CASCADE/i.test(o.t) && !o.d), "");
+check("absent kernels are disabled and labelled",
+  !!kdp.opts && kdp.opts.filter((o) => o.d).every((o) => /not built/i.test(o.t)), "");
 check("shadow gated on the millisecond axis", kdp.shadowDisabled === true, "");
 
 // Switching kernels must actually rechart, not merely set state.
@@ -378,6 +383,54 @@ check("shadow absent from the category legend", !/shadow/i.test(leg), "");
 const shot4 = await send("Page.captureScreenshot", { format: "png" });
 writeFileSync("/tmp/shadow.png", Buffer.from(shot4.data, "base64"));
 console.log("shadow screenshot: /tmp/shadow.png");
+
+
+// The shadow is a whole-suite total. Behind per-area bars it would be
+// the same constant behind every area -- the defect that made CGAL
+// look like it cost 6362ms in every row. It must stay disabled while
+// the per-area view is selected.
+const perArea = await evalJs(`(() => {
+  const sels = [...document.querySelectorAll("select")];
+  const k = sels.find((s) => s.getAttribute("aria-label") === "Kernel");
+  const sh = sels.find((s) => s.getAttribute("aria-label") === "Shadow kernel");
+  const ms = [...document.querySelectorAll("button")]
+    .find((b) => /milliseconds/i.test(b.textContent || ""));
+  if (ms) ms.click();
+  const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set;
+  set.call(k, "axiolid");
+  k.dispatchEvent(new Event("change", { bubbles: true }));
+  return "ok";
+})()`);
+await new Promise((r) => setTimeout(r, 600));
+const gated = await evalJs(`(() => {
+  const sh = [...document.querySelectorAll("select")]
+    .find((s) => s.getAttribute("aria-label") === "Shadow kernel");
+  return JSON.stringify({ disabled: !!sh && sh.disabled });
+})()`);
+const gp = JSON.parse(gated || "{}");
+check("suite shadow blocked in per-area view", gp.disabled === true, "");
+
+// A kernel that finished only part of the suite must say so on its bar:
+// lite_kernel completes 2 of 12 rows, so its small total means it did
+// less work, not that it was faster.
+const cov = await evalJs(`(() => {
+  const sels = [...document.querySelectorAll("select")];
+  const k = sels.find((s) => s.getAttribute("aria-label") === "Kernel");
+  const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set;
+  set.call(k, "all");
+  k.dispatchEvent(new Event("change", { bubbles: true }));
+  return "ok";
+})()`);
+await new Promise((r) => setTimeout(r, 700));
+const covTxt = await evalJs(`(() => {
+  const m = document.querySelector("main") || document.body;
+  return (m.innerText || "").replace(/\\s+/g, " ");
+})()`);
+check("partial coverage is shown on the bar", /2\/12 rows/.test(covTxt), "");
+check("OCCT appears as a measured kernel", /Open CASCADE/i.test(covTxt), "");
+const shot5 = await send("Page.captureScreenshot", { format: "png" });
+writeFileSync("/tmp/allkernels.png", Buffer.from(shot5.data, "base64"));
+console.log("all-kernels screenshot: /tmp/allkernels.png");
 
 const failed = checks.filter((c) => !c.ok);
 console.log(`\n${checks.length - failed.length}/${checks.length} checks passed`);

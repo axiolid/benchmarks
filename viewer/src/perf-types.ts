@@ -146,7 +146,12 @@ export interface KernelProfile {
   profile_share_pct: number;
   /** False when too few samples landed for the split to mean anything. */
   breakdown_trustworthy: boolean;
-  total_ms?: number;
+  /** Whole-suite total across all workload rows -- NOT a per-area figure. */
+  suite_ms?: number;
+  /** Rows this kernel completed, of rows_total. Partial coverage makes a
+   *  small suite_ms mean "did less", not "was faster". */
+  rows_done?: number;
+  rows_total?: number;
   categories: { name: string; pct: number }[];
 }
 

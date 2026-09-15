@@ -80,14 +80,18 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
         : kernels.kernels.filter((k) => k.kernel === kernel);
     return pick.map((k) => {
       const row: Record<string, string | number> = {
-        area: KERNEL_LABELS[k.kernel] ?? k.kernel,
+        area:
+          (KERNEL_LABELS[k.kernel] ?? k.kernel) +
+          (k.rows_done !== undefined && k.rows_done < (k.rows_total ?? 0)
+            ? ` (${k.rows_done}/${k.rows_total} rows)`
+            : ""),
         id: k.kernel,
-        wall: k.total_ms ?? 0,
+        wall: k.suite_ms ?? 0,
         dominant: k.categories[0]?.name ?? "unclassified",
       };
       k.categories.forEach((c) => {
         row[c.name] =
-          mode === "absolute" ? (c.pct / 100) * (k.total_ms ?? 0) : c.pct;
+          mode === "absolute" ? (c.pct / 100) * (k.suite_ms ?? 0) : c.pct;
       });
       return row;
     });
@@ -142,8 +146,12 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
       shadow === "none" || mode !== "absolute" || !kernels
         ? null
         : kernels.kernels.find((k) => k.kernel === shadow);
-    if (!ghost?.total_ms) return base;
-    return base.map((r) => ({ ...r, shadow: ghost.total_ms }));
+    // A suite total is only comparable against other suite totals, i.e.
+    // the kernel bars. Behind per-area bars it would be the same giant
+    // constant behind every area, which is what made CGAL look like it
+    // cost 6362ms in every row.
+    if (!ghost?.suite_ms || !kernelRows) return base;
+    return base.map((r) => ({ ...r, shadow: ghost.suite_ms }));
   }, [kernelRows, rows, shadow, mode, kernels]);
 
   // In kernel mode the categories come from the kernel profiles, which
@@ -210,18 +218,20 @@ export function PerfView({ doc, kernels }: { doc: PerfDoc; kernels: KernelsDoc |
         <select
           value={shadow}
           onChange={(e) => setShadow(e.target.value)}
-          disabled={mode !== "absolute"}
+          disabled={mode !== "absolute" || kernel === "axiolid"}
           className="rounded-md border bg-background px-2 py-1 disabled:opacity-40"
           aria-label="Shadow kernel"
           title={
-            mode === "absolute"
-              ? "Draw another kernel's total time behind the bars"
-              : "Shadow needs the millisecond axis: a total cannot sit behind percentages"
+            mode !== "absolute"
+              ? "Shadow needs the millisecond axis: a total cannot sit behind percentages"
+              : kernel === "axiolid"
+                ? "Shadow is a whole-suite total; pick a kernel view to compare like with like"
+                : "Draw one kernel's full suite time behind the bars"
           }
         >
           <option value="none">No shadow</option>
           {kernels?.kernels
-            .filter((k) => k.total_ms !== undefined)
+            .filter((k) => k.suite_ms !== undefined)
             .map((k) => (
               <option key={k.kernel} value={k.kernel}>
                 Behind: {KERNEL_LABELS[k.kernel] ?? k.kernel}
